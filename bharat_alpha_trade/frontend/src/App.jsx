@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 export default function App() {
-  const [tab, setTab] = useState('chain');
+  const [tab, setTab] = useState('copilot');
   const [symbol, setSymbol] = useState('NIFTY');
   const [chainData, setChainData] = useState(null);
   const [brokerStatus, setBrokerStatus] = useState(null);
@@ -11,6 +11,19 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [funds, setFunds] = useState(null);
   const [positions, setPositions] = useState([]);
+
+  // Arya AI Options Co-Pilot State
+  const [chatQuery, setChatQuery] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [tradeMode, setTradeMode] = useState('paper');
+  const [executionMessage, setExecutionMessage] = useState('');
+  const [chatLogs, setChatLogs] = useState([
+    {
+      sender: 'agent',
+      agent: 'Arya AI ⚡',
+      text: 'Greetings Trader! I am Arya AI, your Options Quantitative Specialist. I calculate Black-Scholes Greeks (Delta, Theta, IV) in real-time. Ask me for strategy recommendations or command me to execute paper/real options trades!'
+    }
+  ]);
 
   useEffect(() => {
     fetchBrokerStatus();
@@ -46,17 +59,70 @@ export default function App() {
     try {
       const r = await fetch('/api/options/execute', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ legs: strategyResult.legs, lot_size: strategyResult.lot_size, mode:'paper', broker:'fyers' })
+        body: JSON.stringify({ legs: strategyResult.legs, lot_size: strategyResult.lot_size, mode: tradeMode, broker:'fyers' })
       });
       const d = await r.json();
-      alert(d.message || JSON.stringify(d));
+      setExecutionMessage(d.message || 'Trade Executed!');
       fetchPositions();
     } catch(e){ alert('Error: '+e); }
+  };
+
+  const handleSendChat = async (e, customPrompt = null) => {
+    if(e) e.preventDefault();
+    const query = customPrompt || chatQuery;
+    if(!query.trim()) return;
+
+    setChatLogs(prev => [...prev, { sender:'user', text: query }]);
+    if(!customPrompt) setChatQuery('');
+    setChatLoading(true);
+
+    try {
+      const r = await fetch('/api/agent/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: query, agent: 'arya' })
+      });
+      const data = await r.json();
+      setChatLogs(prev => [...prev, {
+        sender: 'agent',
+        agent: 'Arya AI ⚡',
+        text: data.reply,
+        trade_action: data.trade_action
+      }]);
+    } catch(err) {
+      console.error(err);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const handleExecuteAgentTrade = async (actionObj) => {
+    setExecutionMessage('');
+    try {
+      const r = await fetch('/api/agent/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          symbol: symbol,
+          action: 'SELL',
+          mode: tradeMode,
+          broker: 'fyers',
+          strategy: actionObj?.strategy || 'SHORT_STRADDLE',
+          qty: 25
+        })
+      });
+      const d = await r.json();
+      setExecutionMessage(d.message || 'Agent Trade Filled!');
+      fetchPositions();
+    } catch(err) {
+      console.error(err);
+    }
   };
 
   const fetchPositions = async () => { try { const r = await fetch('/api/broker/positions'); const d = await r.json(); setPositions(d.positions||[]); } catch(e){} };
 
   const tabs = [
+    {id:'copilot', label:'⚡ Arya Options AI Co-Pilot'},
     {id:'chain', label:'Option Chain'},
     {id:'strategy', label:'Strategy Builder'},
     {id:'positions', label:'Positions & P&L'},
@@ -111,6 +177,98 @@ export default function App() {
 
       {/* Content */}
       <main style={{maxWidth:1400,margin:'28px auto',padding:'0 28px',flex:1,width:'100%'}}>
+
+        {/* ARYA AI CO-PILOT TAB */}
+        {tab==='copilot' && (
+          <div style={{display:'flex',flexDirection:'column',gap:20}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:16}}>
+              <div>
+                <h2 style={{fontSize:'1.4rem',fontWeight:800}}>Arya AI Options Quantitative Assistant</h2>
+                <p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>Real-time Black-Scholes Greeks analysis, delta-neutral strategies, and 1-click execution.</p>
+              </div>
+
+              <div className="glass-panel" style={{padding:6,display:'flex',gap:8}}>
+                <button 
+                  className={tradeMode==='paper'?'btn-primary':'btn-secondary'} 
+                  onClick={()=>setTradeMode('paper')} 
+                  style={{padding:'6px 12px',fontSize:'0.8rem'}}
+                >
+                  📄 Paper Mode (₹5L Capital)
+                </button>
+                <button 
+                  className={tradeMode==='real'?'btn-primary':'btn-secondary'} 
+                  onClick={()=>setTradeMode('real')} 
+                  style={{padding:'6px 12px',fontSize:'0.8rem',background: tradeMode==='real' ? 'linear-gradient(135deg,#FF9800,#F44336)':'none'}}
+                >
+                  🔴 Live Broker (Fyers/Zerodha)
+                </button>
+              </div>
+            </div>
+
+            {executionMessage && (
+              <div className="glass-panel" style={{padding:12,background:'rgba(0,230,118,0.1)',border:'1px solid var(--bull-green)',color:'var(--bull-green)',fontWeight:700,fontSize:'0.88rem'}}>
+                {executionMessage}
+              </div>
+            )}
+
+            {/* Chat Box */}
+            <div className="glass-panel" style={{padding:24,display:'flex',flexDirection:'column',height:480}}>
+              <div style={{flex:1,overflowY:'auto',display:'flex',flexDirection:'column',gap:16,paddingBottom:16}}>
+                {chatLogs.map((m,i)=>(
+                  <div key={i} style={{alignSelf: m.sender==='user'?'flex-end':'flex-start',maxWidth:'80%'}}>
+                    <div style={{
+                      background: m.sender==='user'?'rgba(255,152,0,0.15)':'rgba(20,28,45,0.9)',
+                      border: m.sender==='user'?'1px solid rgba(255,152,0,0.4)':'1px solid var(--panel-border)',
+                      borderRadius:12,padding:14
+                    }}>
+                      <div style={{fontSize:'0.75rem',color: m.sender==='user'?'var(--accent-orange)':'#FFC107',fontWeight:700,marginBottom:4}}>
+                        {m.sender==='user'?'You':m.agent}
+                      </div>
+                      <div style={{fontSize:'0.9rem',whiteSpace:'pre-line',lineHeight:1.5}}>
+                        {m.text}
+                      </div>
+                      {m.trade_action && (
+                        <div style={{marginTop:12,paddingTop:10,borderTop:'1px solid rgba(255,255,255,0.1)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                          <span style={{fontSize:'0.8rem',fontWeight:700,color:'var(--accent-orange)'}}>
+                            Strategy: {m.trade_action.strategy} ({symbol})
+                          </span>
+                          <button 
+                            className="btn-primary" 
+                            style={{padding:'6px 14px',fontSize:'0.8rem',background:'linear-gradient(135deg,#FF9800,#FF5722)'}}
+                            onClick={()=>handleExecuteAgentTrade(m.trade_action)}
+                          >
+                            ⚡ Execute {tradeMode.toUpperCase()} Trade
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {chatLoading && <div style={{color:'var(--text-muted)',fontSize:'0.85rem'}}>Analyzing Options Greeks & IV Rank...</div>}
+              </div>
+
+              {/* Suggestions */}
+              <div style={{display:'flex',gap:8,paddingBottom:12,overflowX:'auto'}}>
+                {[
+                  "What option strategy should I run on NIFTY today?",
+                  "Recommend an Iron Condor setup",
+                  "Show ATM Straddle Greeks & Decay"
+                ].map((p,idx)=>(
+                  <button key={idx} className="btn-secondary" style={{padding:'4px 10px',fontSize:'0.75rem',whiteSpace:'nowrap'}} onClick={(e)=>handleSendChat(e,p)}>
+                    💡 {p}
+                  </button>
+                ))}
+              </div>
+
+              <form onSubmit={handleSendChat} style={{display:'flex',gap:8}}>
+                <input type="text" className="search-input" placeholder="Ask Arya AI for option strategy suggestions or market questions..." value={chatQuery} onChange={e=>setChatQuery(e.target.value)}/>
+                <button type="submit" className="btn-primary" disabled={chatLoading} style={{background:'linear-gradient(135deg,#FF9800,#FF5722)'}}>
+                  Ask Arya
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* OPTION CHAIN TAB */}
         {tab==='chain' && chainData && (
@@ -169,7 +327,6 @@ export default function App() {
           <div style={{display:'flex',flexDirection:'column',gap:24}}>
             <h2 style={{fontSize:'1.4rem',fontWeight:800}}>Options Strategy Builder & Payoff Analyzer</h2>
             <div style={{display:'grid',gridTemplateColumns:'350px 1fr',gap:24}}>
-              {/* Controls */}
               <div className="glass-panel" style={{padding:24,display:'flex',flexDirection:'column',gap:16}}>
                 <div>
                   <label style={{fontSize:'0.8rem',color:'var(--text-muted)',display:'block',marginBottom:6}}>Select Strategy</label>
@@ -190,7 +347,6 @@ export default function App() {
                 )}
               </div>
 
-              {/* Results */}
               {strategyResult ? (
                 <div style={{display:'flex',flexDirection:'column',gap:20}}>
                   <div className="glass-panel" style={{padding:24,borderLeft:'4px solid var(--accent-orange)'}}>
@@ -208,45 +364,18 @@ export default function App() {
                         <div style={{fontSize:'0.72rem',color:'var(--text-muted)'}}>Net Premium</div>
                         <div className="mono" style={{fontSize:'1.3rem',fontWeight:800,color:'var(--accent-orange)'}}>₹{strategyResult.net_premium_total}</div>
                       </div>
-                      <div className="glass-panel" style={{padding:14}}>
-                        <div style={{fontSize:'0.72rem',color:'var(--text-muted)'}}>Breakevens</div>
-                        <div className="mono" style={{fontSize:'1rem',fontWeight:700}}>{strategyResult.breakevens?.join(' / ') || 'N/A'}</div>
-                      </div>
                     </div>
                   </div>
 
-                  {/* Payoff Chart */}
                   <div className="glass-panel" style={{padding:24}}>
                     <h4 style={{fontSize:'1rem',fontWeight:700,marginBottom:12}}>Payoff at Expiry</h4>
                     <div style={{height:200,display:'flex',alignItems:'flex-end',gap:2,background:'rgba(5,8,14,0.6)',borderRadius:8,padding:16,position:'relative'}}>
                       {strategyResult.payoff_curve?.map((pt,i)=>{
                         const maxAbs = Math.max(...strategyResult.payoff_curve.map(p=>Math.abs(p.pnl)),1);
                         const h = Math.abs(pt.pnl)/maxAbs*80;
-                        return(<div key={i} title={`₹${pt.price}: P&L ₹${pt.pnl}`}
-                          style={{flex:1,height:`${h}%`,background:pt.pnl>=0?'var(--bull-green)':'var(--bear-red)',opacity:0.8,borderRadius:1,
-                            alignSelf:pt.pnl>=0?'flex-end':'flex-end',marginTop:pt.pnl<0?'auto':'0'}}/>);
+                        return(<div key={i} title={`₹${pt.price}: P&L ₹${pt.pnl}`} style={{flex:1,height:`${h}%`,background:pt.pnl>=0?'var(--bull-green)':'var(--bear-red)',opacity:0.8,borderRadius:1}}/>);
                       })}
-                      <div style={{position:'absolute',left:16,top:8,fontSize:'0.72rem',color:'var(--text-muted)'}}>Profit ↑ / Loss ↓</div>
                     </div>
-                  </div>
-
-                  {/* Legs Table */}
-                  <div className="glass-panel" style={{padding:24}}>
-                    <h4 style={{fontSize:'1rem',fontWeight:700,marginBottom:12}}>Strategy Legs</h4>
-                    <table className="custom-table">
-                      <thead><tr><th>Action</th><th>Type</th><th>Strike</th><th>Premium</th><th>Qty (lots)</th></tr></thead>
-                      <tbody>
-                        {strategyResult.legs?.map((l,i)=>(
-                          <tr key={i}>
-                            <td><span className={`badge ${l.action==='SELL'?'badge-bear':'badge-bull'}`}>{l.action}</span></td>
-                            <td className="mono" style={{fontWeight:700}}>{l.type}</td>
-                            <td className="mono" style={{fontWeight:700}}>₹{l.strike}</td>
-                            <td className="mono">₹{l.premium}</td>
-                            <td className="mono">{l.qty}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
                   </div>
                 </div>
               ) : (
@@ -273,9 +402,9 @@ export default function App() {
                         <td className="mono">{p.type}</td>
                         <td className="mono" style={{fontWeight:700}}>₹{p.strike}</td>
                         <td className="mono">{p.qty}</td>
-                        <td className="mono">₹{p.premium}</td>
+                        <td className="mono">₹{p.entry_premium || p.premium}</td>
                         <td><span className="badge badge-gold">{p.status}</span></td>
-                        <td style={{fontSize:'0.75rem',color:'var(--text-muted)'}}>{p.timestamp?.slice(0,19)}</td>
+                        <td style={{fontSize:'0.75rem',color:'var(--text-muted)'}}>{p.time || p.timestamp?.slice(0,19)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -283,7 +412,7 @@ export default function App() {
               </div>
             ) : (
               <div className="glass-panel" style={{padding:40,textAlign:'center',color:'var(--text-muted)'}}>
-                No open positions. Execute a strategy from the Strategy Builder tab.
+                No open positions. Execute a strategy from the Strategy Builder or Arya AI tab.
               </div>
             )}
           </div>

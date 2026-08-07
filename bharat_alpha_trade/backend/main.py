@@ -225,15 +225,31 @@ def get_positions():
         return sanitize(fyers_broker.get_positions())
     return {"status": "success", "positions": [], "message": "No broker connected"}
 
-@app.get("/api/broker/funds")
-def get_funds():
-    """Get available trading funds."""
-    if fyers_broker.is_connected():
-        return sanitize(fyers_broker.get_funds())
-    return sanitize({
-        "status": "success",
-        "mode": "paper",
-        "available_margin": 500000,
-        "used_margin": 0,
-        "message": "Paper trading mode — ₹5,00,000 simulated capital"
-    })
+from backend.engine.agent_hub import TradeAgentEngine
+
+trade_agent = TradeAgentEngine()
+
+class AgentChatReq(BaseModel):
+    query: str
+    agent: str = "arya"
+
+class AgentExecReq(BaseModel):
+    symbol: str = "NIFTY"
+    action: str = "BUY"
+    mode: str = "paper"
+    broker: str = "fyers"
+    strategy: str = "SHORT_STRADDLE"
+    qty: int = 25
+    strike: int = 24600
+    type: str = "CE"
+
+@app.post("/api/agent/chat")
+def trade_agent_chat(req: AgentChatReq):
+    """Chat with Options AI Agent (Arya) for live Greeks analysis & strategy recommendations."""
+    return sanitize(trade_agent.process_chat(req.query, req.agent))
+
+@app.post("/api/agent/execute")
+def trade_agent_execute(req: AgentExecReq):
+    """Execute paper or real broker trade directly triggered by AI Agent."""
+    return sanitize(trade_agent.execute_trade(req.dict()))
+

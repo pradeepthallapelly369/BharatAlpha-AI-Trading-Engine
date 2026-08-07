@@ -25,13 +25,15 @@ The platform operates as **two independent, modular applications**, each equippe
 │  │ 📈 BHARAT ALPHA INVEST               │  │ ⚡ BHARAT ALPHA TRADE            │  │
 │  │ (Long-Term & Wealth Building)       │  │ (Options & Futures Terminal)     │  │
 │  ├─────────────────────────────────────┤  ├──────────────────────────────────┤  │
-│  │ • AI Screener (VCP + Fundamental)   │  │ • Live Option Chain with Greeks  │  │
-│  │ • 50-Yr Veteran Investment Memos    │  │ • Black-Scholes Delta/Theta/IV   │  │
-│  │ • Technical & Fundamental Engine    │  │ • 7 Preset Multi-Leg Strategies  │  │
-│  │ • Mutual Funds Screener (CAGR/AUM)  │  │ • Interactive Payoff Curve       │  │
-│  │ • MCX Gold/Silver & SGB Tracker     │  │ • Paper Trading (₹5L Capital)    │  │
-│  │ • G-Sec Bonds & FD Yield Matrix     │  │ • Fyers & Zerodha OAuth Connect  │  │
-│  │ • SIP Step-Up Growth Calculator     │  │ • Real-Time Open Positions & P&L │  │
+│  │ • 🤖 Autonomous Multi-Agent Hub    │  │ • 🤖 Arya AI Options Co-Pilot    │  │
+│  │   (Chanakya, Arya, Vikram, Kautilya)│  │ • Live Option Chain with Greeks  │  │
+│  │ • AI Screener (VCP + Fundamental)   │  │ • Black-Scholes Delta/Theta/IV   │  │
+│  │ • 50-Yr Veteran Investment Memos    │  │ • 7 Preset Multi-Leg Strategies  │  │
+│  │ • Technical & Fundamental Engine    │  │ • Interactive Payoff Curve       │  │
+│  │ • Mutual Funds Screener (CAGR/AUM)  │  │ • Paper & Real Order Execution   │  │
+│  │ • MCX Gold/Silver & SGB Tracker     │  │ • Fyers & Zerodha OAuth Connect  │  │
+│  │ • G-Sec Bonds & FD Yield Matrix     │  │ • Real-Time Open Positions & P&L │  │
+│  │ • SIP Step-Up Growth Calculator     │  │                                  │  │
 │  │ • Risk-Adjusted Asset Allocator     │  │                                  │  │
 │  ├─────────────────────────────────────┤  ├──────────────────────────────────┤  │
 │  │ Backend: :8000 | Frontend: :5173    │  │ Backend: :8001 | Frontend: :5174 │  │
@@ -42,6 +44,12 @@ The platform operates as **two independent, modular applications**, each equippe
 ---
 
 ## 🔥 Key Modules & Technical Highlights
+
+### 🤖 Autonomous Multi-Agent AI Suite (Chanakya, Arya, Vikram, Kautilya)
+- **Chanakya AI (Wealth & Value Strategist)**: Analyzes fundamentals, Coffee Can compounders, 10Y ROE/ROCE trajectories, and mutual fund CAGR/expense ratios for long-term wealth building.
+- **Arya AI (Options Quantitative Specialist)**: Computes Black-Scholes Greeks (Delta, Gamma, Theta, Vega), evaluates IV skew, suggests delta-neutral multi-leg option strategies (Iron Condor, Short Straddle), and triggers automated Paper/Real order execution.
+- **Vikram AI (Swing & Momentum Trader)**: Scans for Mark Minervini Volatility Contraction Patterns (VCP), 20/50/200 EMA trend alignment, breakout volume surges, and RSI momentum confirmation.
+- **Kautilya AI (Risk & Portfolio Guardian)**: Enforces position sizing rules, max capital risk limits, diversification constraints, and stop-loss management.
 
 ### 📈 Application 1: BharatAlpha Invest (Long-Term Wealth Building)
 - **Institutional Quantitative Screener**: Parallel screening across NSE stock universes applying Mark Minervini Volatility Contraction Pattern (VCP) detection, RSI momentum divergence, 20/50/200-day EMA trends, and volume ratio surges.
@@ -55,7 +63,7 @@ The platform operates as **two independent, modular applications**, each equippe
 - **Black-Scholes Options Greeks Engine**: Real-time calculation of **Delta, Gamma, Theta, Vega, Rho**, and **Implied Volatility (IV)** using Newton-Raphson root finding across NIFTY and BANKNIFTY option chains.
 - **7 Multi-Leg Option Strategy Templates**: Preset templates for **Short Straddle, Short Strangle, Iron Condor, Bull Call Spread, Bear Put Spread, Jade Lizard**, and **Long Straddle**.
 - **Interactive Payoff Diagram Generator**: Visualizes expiry profit/loss curves, max profit, max risk, and breakeven points for multi-leg option orders.
-- **Paper Trading Engine**: Simulated execution mode featuring virtual ₹5,00,000 margin, instant order fills, and live position P&L tracking.
+- **Paper & Real Trading Engine**: Supports Paper Trading (virtual ₹5,00,000 margin, live fill engine) and Real Broker execution via Fyers/Zerodha OAuth.
 - **Fyers & Zerodha Broker API Connectors**: Production-ready OAuth authentication and multi-leg order execution modules for Fyers API v3 and Zerodha Kite Connect.
 
 ---

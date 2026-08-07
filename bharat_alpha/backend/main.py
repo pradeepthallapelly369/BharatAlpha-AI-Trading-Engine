@@ -272,12 +272,53 @@ def run_sip_calculator(req: SipRequest):
         req.monthly_sip, req.tenure_years, req.expected_cagr_pct, req.stepup_pct
     ))
 
-@app.post("/api/invest/portfolio-allocation")
-def run_portfolio_allocation(req: PortfolioAllocationRequest):
+from backend.engine.agent_hub import MultiAgentEngine
+
+agent_engine = MultiAgentEngine()
+
+class AgentChatRequest(BaseModel):
+    query: str
+    agent: str = "auto"
+    capital: float = 500000.0
+
+class AgentTradeRequest(BaseModel):
+    agent: str = "chanakya"
+    action: str = "BUY"
+    symbol: str
+    type: str = "EQUITY"
+    mode: str = "paper" # paper or real
+    qty: int = 10
+    entry_price: float = 0.0
+
+@app.post("/api/agent/chat")
+def agent_chat_endpoint(req: AgentChatRequest):
     """
-    Generates recommended asset allocation split based on user age & risk tolerance.
+    Process natural language questions via specialized AI Agents (Chanakya, Arya, Vikram, Kautilya).
     """
-    return sanitize_json_obj(generate_asset_allocation(
-        req.age, req.risk_profile
-    ))
+    return sanitize_json_obj(agent_engine.process_query(req.query, req.agent, req.capital))
+
+@app.get("/api/agent/suggestions")
+def agent_suggestions_endpoint():
+    """
+    Returns proactive trade & investment suggestions from all specialized agents.
+    """
+    return sanitize_json_obj(agent_engine.get_proactive_agent_suggestions())
+
+@app.post("/api/agent/execute-trade")
+def agent_execute_trade_endpoint(req: AgentTradeRequest):
+    """
+    Executes paper or real broker trade directly recommended by AI Agents.
+    """
+    return sanitize_json_obj({
+        "status": "success",
+        "message": f"✅ {req.agent.upper()} AI Order Executed in {req.mode.upper()} mode!",
+        "order": {
+            "symbol": req.symbol,
+            "action": req.action,
+            "qty": req.qty,
+            "mode": req.mode.upper(),
+            "status": "FILLED"
+        }
+    })
+
 

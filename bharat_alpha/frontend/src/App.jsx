@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { 
   TrendingUp, TrendingDown, ShieldAlert, Zap, Search, 
   BarChart2, Filter, Award, Target, Calculator, PieChart, Activity, RefreshCw,
-  Coins, Landmark, Percent, Layers
+  Coins, Landmark, Percent, Layers, Bot, Send, CheckCircle2, Play, AlertTriangle
 } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('screener');
+  const [activeTab, setActiveTab] = useState('agent_copilot');
   const [searchTicker, setSearchTicker] = useState('RELIANCE');
   const [stockData, setStockData] = useState(null);
   const [chartData, setChartData] = useState([]);
@@ -18,7 +18,6 @@ export default function App() {
   // Mutual Funds state
   const [mfCategory, setMfCategory] = useState('ALL');
   const [mfData, setMfData] = useState(null);
-  const [mfLoading, setMfLoading] = useState(false);
 
   // Commodities & Bonds state
   const [commBondsData, setCommBondsData] = useState(null);
@@ -34,6 +33,22 @@ export default function App() {
   const [allocAge, setAllocAge] = useState(32);
   const [allocRisk, setAllocRisk] = useState('MODERATE');
   const [allocResult, setAllocResult] = useState(null);
+
+  // AI Agent Co-Pilot state
+  const [selectedAgent, setSelectedAgent] = useState('auto');
+  const [agentQuery, setAgentQuery] = useState('');
+  const [agentLoading, setAgentLoading] = useState(false);
+  const [agentSuggestions, setAgentSuggestions] = useState(null);
+  const [executionMode, setExecutionMode] = useState('paper'); // paper or real
+  const [tradeMessage, setTradeMessage] = useState('');
+  const [chatHistory, setChatHistory] = useState([
+    {
+      sender: 'agent',
+      agent: 'chanakya',
+      name: 'Chanakya AI 📈',
+      text: 'Welcome! I am Chanakya AI, your 50-Year Veteran Investment & Wealth Strategist. Ask me any question regarding stock valuation, mutual funds, gold allocation, or request an instant trade execution!'
+    }
+  ]);
 
   // Backtester state
   const [btTicker, setBtTicker] = useState('TATAMOTORS');
@@ -58,6 +73,7 @@ export default function App() {
     fetchCommoditiesBonds();
     fetchSipCalculation(25000, 15, 15.0, 10.0);
     fetchPortfolioAllocation(32, 'MODERATE');
+    fetchAgentSuggestions();
   }, []);
 
   const fetchMarketPulse = async () => {
@@ -65,9 +81,7 @@ export default function App() {
       const res = await fetch('/api/market-pulse');
       const data = await res.json();
       setPulseData(data);
-    } catch (e) {
-      console.error('Pulse fetch error:', e);
-    }
+    } catch (e) { console.error('Pulse fetch error:', e); }
   };
 
   const fetchScreener = async () => {
@@ -75,9 +89,7 @@ export default function App() {
       const res = await fetch('/api/screener');
       const data = await res.json();
       setScreenerData(data.data);
-    } catch (e) {
-      console.error('Screener fetch error:', e);
-    }
+    } catch (e) { console.error('Screener fetch error:', e); }
   };
 
   const fetchStockDetails = async (tickerSymbol) => {
@@ -89,36 +101,24 @@ export default function App() {
         setStockData(data);
         fetchStockChart(tickerSymbol);
       }
-    } catch (e) {
-      console.error('Stock detail error:', e);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { console.error('Stock detail error:', e); }
+    finally { setLoading(false); }
   };
 
   const fetchStockChart = async (tickerSymbol) => {
     try {
       const res = await fetch(`/api/stock/${tickerSymbol}/chart?period=6m`);
       const data = await res.json();
-      if (data.status === 'success') {
-        setChartData(data.chart || []);
-      }
-    } catch (e) {
-      console.error('Chart fetch error:', e);
-    }
+      if (data.status === 'success') setChartData(data.chart || []);
+    } catch (e) { console.error('Chart fetch error:', e); }
   };
 
   const fetchMutualFunds = async (cat) => {
-    setMfLoading(true);
     try {
       const res = await fetch(`/api/invest/mutual-funds?category=${cat}`);
       const data = await res.json();
       setMfData(data);
-    } catch (e) {
-      console.error('MF fetch error:', e);
-    } finally {
-      setMfLoading(false);
-    }
+    } catch (e) { console.error('MF fetch error:', e); }
   };
 
   const fetchCommoditiesBonds = async () => {
@@ -126,9 +126,7 @@ export default function App() {
       const res = await fetch('/api/invest/commodities-bonds');
       const data = await res.json();
       setCommBondsData(data);
-    } catch (e) {
-      console.error('CommBonds fetch error:', e);
-    }
+    } catch (e) { console.error('CommBonds fetch error:', e); }
   };
 
   const fetchSipCalculation = async (m, t, r, s) => {
@@ -136,18 +134,11 @@ export default function App() {
       const res = await fetch('/api/invest/sip-calculator', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          monthly_sip: parseFloat(m),
-          tenure_years: parseInt(t),
-          expected_cagr_pct: parseFloat(r),
-          stepup_pct: parseFloat(s)
-        })
+        body: JSON.stringify({ monthly_sip: parseFloat(m), tenure_years: parseInt(t), expected_cagr_pct: parseFloat(r), stepup_pct: parseFloat(s) })
       });
       const data = await res.json();
       setSipResult(data);
-    } catch (e) {
-      console.error('SIP calc error:', e);
-    }
+    } catch (e) { console.error('SIP calc error:', e); }
   };
 
   const fetchPortfolioAllocation = async (age, risk) => {
@@ -159,8 +150,69 @@ export default function App() {
       });
       const data = await res.json();
       setAllocResult(data);
-    } catch (e) {
-      console.error('Alloc fetch error:', e);
+    } catch (e) { console.error('Alloc fetch error:', e); }
+  };
+
+  const fetchAgentSuggestions = async () => {
+    try {
+      const res = await fetch('/api/agent/suggestions');
+      const data = await res.json();
+      setAgentSuggestions(data);
+    } catch (e) { console.error('Agent suggestions error:', e); }
+  };
+
+  const handleSendAgentQuery = async (e, customQuery = null) => {
+    if (e) e.preventDefault();
+    const queryToSubmit = customQuery || agentQuery;
+    if (!queryToSubmit.trim()) return;
+
+    // Add user message to history
+    const userMsg = { sender: 'user', text: queryToSubmit };
+    setChatHistory((prev) => [...prev, userMsg]);
+    if (!customQuery) setAgentQuery('');
+    setAgentLoading(true);
+
+    try {
+      const res = await fetch('/api/agent/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: queryToSubmit, agent: selectedAgent, capital: parseFloat(calcCapital) })
+      });
+      const data = await res.json();
+      
+      const agentMsg = {
+        sender: 'agent',
+        agent: data.agent_info?.name || 'BharatAlpha AI',
+        text: data.reply,
+        actionable_trade: data.actionable_trade
+      };
+      setChatHistory((prev) => [...prev, agentMsg]);
+    } catch (err) {
+      console.error('Agent query error:', err);
+    } finally {
+      setAgentLoading(false);
+    }
+  };
+
+  const handleExecuteAgentTrade = async (tradeObj) => {
+    setTradeMessage('');
+    try {
+      const res = await fetch('/api/agent/execute-trade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent: tradeObj.symbol || 'chanakya',
+          action: tradeObj.action || 'BUY',
+          symbol: tradeObj.symbol || 'RELIANCE',
+          mode: executionMode,
+          qty: tradeObj.suggested_qty || 10,
+          entry_price: tradeObj.entry_price || 0
+        })
+      });
+      const data = await res.json();
+      setTradeMessage(data.message);
+    } catch (err) {
+      console.error('Execute error:', err);
     }
   };
 
@@ -178,14 +230,9 @@ export default function App() {
     try {
       const res = await fetch(`/api/backtest?ticker=${btTicker}&strategy=${btStrategy}&period=${btPeriod}`);
       const data = await res.json();
-      if (data.status === 'success') {
-        setBtResult(data.data);
-      }
-    } catch (e) {
-      console.error('Backtest error:', e);
-    } finally {
-      setBtLoading(false);
-    }
+      if (data.status === 'success') setBtResult(data.data);
+    } catch (e) { console.error('Backtest error:', e); }
+    finally { setBtLoading(false); }
   };
 
   const handleCalculatePosition = async (e) => {
@@ -194,20 +241,11 @@ export default function App() {
       const res = await fetch('/api/position-size', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          capital: parseFloat(calcCapital),
-          risk_tolerance_pct: parseFloat(calcRiskPct),
-          entry_price: parseFloat(calcEntry),
-          stop_loss_price: parseFloat(calcStopLoss)
-        })
+        body: JSON.stringify({ capital: parseFloat(calcCapital), risk_tolerance_pct: parseFloat(calcRiskPct), entry_price: parseFloat(calcEntry), stop_loss_price: parseFloat(calcStopLoss) })
       });
       const data = await res.json();
-      if (data.status === 'success') {
-        setCalcResult(data);
-      }
-    } catch (e) {
-      console.error('Calc error:', e);
-    }
+      if (data.status === 'success') setCalcResult(data);
+    } catch (e) { console.error('Calc error:', e); }
   };
 
   return (
@@ -227,7 +265,7 @@ export default function App() {
                 BharatAlpha Invest 📈
               </h1>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                50-Year Veteran Long-Term Wealth Intelligence
+                Autonomous Multi-Agent Stock Market Intelligence & Wealth Hub
               </p>
             </div>
           </div>
@@ -268,6 +306,7 @@ export default function App() {
       <nav style={{ background: 'rgba(10, 14, 22, 0.95)', borderBottom: '1px solid var(--panel-border)', padding: '0 28px' }}>
         <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', gap: 8, overflowX: 'auto' }}>
           {[
+            { id: 'agent_copilot', label: '🤖 AI Agent Co-Pilot', icon: Bot },
             { id: 'screener', label: 'AI Signal Screener', icon: Filter },
             { id: 'terminal', label: 'Stock Research Terminal', icon: BarChart2 },
             { id: 'mutual_funds', label: 'Mutual Funds', icon: Layers },
@@ -310,6 +349,196 @@ export default function App() {
       {/* Main Content Area */}
       <main style={{ maxWidth: 1400, margin: '28px auto', padding: '0 28px', flex: 1, width: '100%' }}>
 
+        {/* TAB 0: AI AGENT CO-PILOT (NEW) */}
+        {activeTab === 'agent_copilot' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            
+            {/* Header & Execution Mode Selector */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+              <div>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Autonomous AI Agent Intelligence Hub</h2>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                  Ask questions, receive instant suggestions, and direct AI agents to execute Paper or Real Broker Trades.
+                </p>
+              </div>
+
+              {/* Execution Mode Toggle */}
+              <div className="glass-panel" style={{ padding: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginLeft: 6 }}>Trade Execution Mode:</span>
+                <button
+                  onClick={() => setExecutionMode('paper')}
+                  className={executionMode === 'paper' ? 'btn-primary' : 'btn-secondary'}
+                  style={{ padding: '6px 14px', fontSize: '0.8rem' }}
+                >
+                  📄 Paper Mode (Virtual ₹5L)
+                </button>
+                <button
+                  onClick={() => setExecutionMode('real')}
+                  className={executionMode === 'real' ? 'btn-primary' : 'btn-secondary'}
+                  style={{ padding: '6px 14px', fontSize: '0.8rem', background: executionMode === 'real' ? 'linear-gradient(135deg, #FF9800, #F44336)' : 'none' }}
+                >
+                  🔴 Live Broker (Fyers / Zerodha)
+                </button>
+              </div>
+            </div>
+
+            {/* Proactive Agent Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+              {[
+                { id: 'chanakya', name: 'Chanakya AI 📈', role: 'Wealth Strategist', data: agentSuggestions?.chanakya, color: '#00F0FF' },
+                { id: 'arya', name: 'Arya AI ⚡', role: 'Options Trader', data: agentSuggestions?.arya, color: '#FF9800' },
+                { id: 'vikram', name: 'Vikram AI 🏹', role: 'Swing Momentum', data: agentSuggestions?.vikram, color: '#00E676' },
+                { id: 'kautilya', name: 'Kautilya AI 🛡️', role: 'Risk Guardian', data: agentSuggestions?.kautilya, color: '#E91E63' },
+              ].map((ag) => (
+                <div key={ag.id} className="glass-panel" style={{ padding: 16, borderLeft: `4px solid ${ag.color}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontWeight: 800, fontSize: '0.95rem', color: ag.color }}>{ag.name}</div>
+                    <span className="badge badge-cyan" style={{ fontSize: '0.7rem' }}>{ag.role}</span>
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#FFF', fontWeight: 700, marginTop: 8 }}>
+                    {ag.data?.title || 'Active Market Scan'}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: 4 }}>
+                    {ag.data?.reason}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+                    <span className="mono" style={{ fontWeight: 700, fontSize: '0.85rem' }}>{ag.data?.ticker}: {ag.data?.action}</span>
+                    <button
+                      className="btn-secondary"
+                      style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+                      onClick={() => handleSendAgentQuery(null, `Tell me more about ${ag.data?.ticker} suggestion`)}
+                    >
+                      Ask {ag.id}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Notification Banner for Executed Trades */}
+            {tradeMessage && (
+              <div className="glass-panel" style={{ padding: 14, background: 'rgba(0, 230, 118, 0.1)', border: '1px solid var(--bull-green)', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <CheckCircle2 size={20} color="var(--bull-green)" />
+                <span style={{ color: 'var(--bull-green)', fontWeight: 700, fontSize: '0.9rem' }}>{tradeMessage}</span>
+              </div>
+            )}
+
+            {/* Chat Interface Container */}
+            <div className="glass-panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', height: 500 }}>
+              
+              {/* Agent Selector Bar */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 16, borderBottom: '1px solid var(--panel-border)', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)' }}>Select Specialist Agent:</span>
+                {[
+                  { id: 'auto', label: '🤖 Auto-Routing Engine' },
+                  { id: 'chanakya', label: '📈 Chanakya (Wealth)' },
+                  { id: 'arya', label: '⚡ Arya (Options)' },
+                  { id: 'vikram', label: '🏹 Vikram (Swing)' },
+                  { id: 'kautilya', label: '🛡️ Kautilya (Risk)' }
+                ].map((a) => (
+                  <button
+                    key={a.id}
+                    onClick={() => setSelectedAgent(a.id)}
+                    className={selectedAgent === a.id ? 'btn-primary' : 'btn-secondary'}
+                    style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Chat Message Scrollable Box */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '16px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {chatHistory.map((msg, idx) => (
+                  <div 
+                    key={idx} 
+                    style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      alignItems: msg.sender === 'user' ? 'flex-end' : 'flex-start' 
+                    }}
+                  >
+                    <div 
+                      style={{ 
+                        maxWidth: '80%', 
+                        background: msg.sender === 'user' ? 'rgba(0, 240, 255, 0.15)' : 'rgba(20, 28, 45, 0.9)', 
+                        border: msg.sender === 'user' ? '1px solid rgba(0, 240, 255, 0.4)' : '1px solid var(--panel-border)', 
+                        borderRadius: 12, 
+                        padding: 16 
+                      }}
+                    >
+                      <div style={{ fontSize: '0.75rem', color: msg.sender === 'user' ? 'var(--accent-cyan)' : 'var(--warning-gold)', fontWeight: 700, marginBottom: 6 }}>
+                        {msg.sender === 'user' ? 'You' : msg.agent}
+                      </div>
+                      <div style={{ fontSize: '0.9rem', whiteSpace: 'pre-line', lineHeight: 1.5, color: '#FFF' }}>
+                        {msg.text}
+                      </div>
+
+                      {/* Actionable Trade Execution Button */}
+                      {msg.actionable_trade && (
+                        <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                          <div>
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Action: </span>
+                            <span className="mono" style={{ fontWeight: 800, color: 'var(--accent-cyan)' }}>
+                              {msg.actionable_trade.action || msg.actionable_trade.type} {msg.actionable_trade.symbol}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => handleExecuteAgentTrade(msg.actionable_trade)}
+                            className="btn-primary"
+                            style={{ padding: '6px 14px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 6 }}
+                          >
+                            <Play size={14} /> Execute {executionMode.toUpperCase()} Trade
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {agentLoading && (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    <RefreshCw size={16} className="spin" /> Analyzing market quantitative models...
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Suggestion Prompts */}
+              <div style={{ display: 'flex', gap: 8, paddingBottom: 12, overflowX: 'auto' }}>
+                {[
+                  "Suggest top stock for long term",
+                  "What option strategy should I run on NIFTY today?",
+                  "Show VCP breakout setup",
+                  "Audit my portfolio risk & sizing"
+                ].map((prompt, i) => (
+                  <button
+                    key={i}
+                    className="btn-secondary"
+                    style={{ padding: '4px 10px', fontSize: '0.75rem', whiteSpace: 'nowrap' }}
+                    onClick={(e) => handleSendAgentQuery(e, prompt)}
+                  >
+                    💡 {prompt}
+                  </button>
+                ))}
+              </div>
+
+              {/* Chat Input Bar */}
+              <form onSubmit={handleSendAgentQuery} style={{ display: 'flex', gap: 8 }}>
+                <input 
+                  type="text" 
+                  className="search-input" 
+                  placeholder="Ask Chanakya, Arya, Vikram or Kautilya AI anything..." 
+                  value={agentQuery} 
+                  onChange={(e) => setAgentQuery(e.target.value)} 
+                />
+                <button type="submit" className="btn-primary" disabled={agentLoading} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Send size={16} /> Ask
+                </button>
+              </form>
+
+            </div>
+          </div>
+        )}
+
         {/* TAB 1: AI SCREENER */}
         {activeTab === 'screener' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -321,7 +550,6 @@ export default function App() {
                 </p>
               </div>
 
-              {/* Screener Filter Toggle */}
               <div className="glass-panel" style={{ padding: 4, display: 'flex', gap: 4 }}>
                 <button
                   onClick={() => setScreenerFilter('long_term')}
@@ -340,7 +568,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Screener Table */}
             <div className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
               <div className="table-container">
                 <table className="custom-table">
@@ -437,7 +664,6 @@ export default function App() {
               </div>
             ) : stockData ? (
               <>
-                {/* Stock Overview Header */}
                 <div className="glass-panel" style={{ padding: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 20 }}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -472,10 +698,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 2-Column Grid: Chart & Veteran Memo */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: 24 }}>
-                  
-                  {/* Price & Indicator Canvas Chart */}
                   <div className="glass-panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>6-Month Technical Trend & Moving Averages</h3>
@@ -485,7 +708,6 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Chart Container */}
                     <div style={{ height: 280, width: '100%', background: 'rgba(5,8,14,0.6)', borderRadius: 8, padding: 16, display: 'flex', alignItems: 'flex-end', gap: 4 }}>
                       {chartData.map((pt, idx) => {
                         if (idx % 2 !== 0) return null;
@@ -503,7 +725,6 @@ export default function App() {
                       })}
                     </div>
 
-                    {/* Technical Indicator Indicators */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginTop: 8 }}>
                       <div className="glass-panel" style={{ padding: 12, textAlign: 'center' }}>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>RSI (14)</div>
@@ -524,7 +745,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* 50-Year Veteran AI Investment Memo */}
                   <div className="glass-panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16, borderLeft: '4px solid var(--accent-cyan)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
@@ -551,39 +771,17 @@ export default function App() {
                       </ul>
                     </div>
 
-                    {/* Trade Blueprint Card */}
                     <div style={{ background: 'rgba(10, 15, 25, 0.9)', padding: 16, borderRadius: 10, border: '1px solid var(--panel-border)', marginTop: 4 }}>
                       <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-cyan)', textTransform: 'uppercase', marginBottom: 10 }}>
                         🎯 Actionable Trade Execution Blueprint
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, fontSize: '0.85rem' }}>
-                        <div>
-                          <span style={{ color: 'var(--text-muted)' }}>Entry Zone: </span>
-                          <span className="mono" style={{ fontWeight: 700 }}>{stockData.trade_plan?.entry_zone}</span>
-                        </div>
-                        <div>
-                          <span style={{ color: 'var(--text-muted)' }}>Stop Loss: </span>
-                          <span className="mono" style={{ color: 'var(--bear-red)', fontWeight: 700 }}>₹{stockData.trade_plan?.stop_loss} ({stockData.trade_plan?.stop_loss_pct})</span>
-                        </div>
-                        <div>
-                          <span style={{ color: 'var(--text-muted)' }}>Target 1: </span>
-                          <span className="mono" style={{ color: 'var(--bull-green)', fontWeight: 700 }}>₹{stockData.trade_plan?.target_1} ({stockData.trade_plan?.target_1_pct})</span>
-                        </div>
-                        <div>
-                          <span style={{ color: 'var(--text-muted)' }}>Target 2: </span>
-                          <span className="mono" style={{ color: 'var(--bull-green)', fontWeight: 700 }}>₹{stockData.trade_plan?.target_2} ({stockData.trade_plan?.target_2_pct})</span>
-                        </div>
-                        <div>
-                          <span style={{ color: 'var(--text-muted)' }}>Risk : Reward: </span>
-                          <span className="mono" style={{ fontWeight: 700 }}>{stockData.trade_plan?.risk_reward_ratio}</span>
-                        </div>
-                        <div>
-                          <span style={{ color: 'var(--text-muted)' }}>Time Horizon: </span>
-                          <span style={{ fontWeight: 600, color: 'var(--warning-gold)' }}>{stockData.trade_plan?.horizon}</span>
-                        </div>
+                        <div><span style={{ color: 'var(--text-muted)' }}>Entry Zone: </span><span className="mono" style={{ fontWeight: 700 }}>{stockData.trade_plan?.entry_zone}</span></div>
+                        <div><span style={{ color: 'var(--text-muted)' }}>Stop Loss: </span><span className="mono" style={{ color: 'var(--bear-red)', fontWeight: 700 }}>₹{stockData.trade_plan?.stop_loss} ({stockData.trade_plan?.stop_loss_pct})</span></div>
+                        <div><span style={{ color: 'var(--text-muted)' }}>Target 1: </span><span className="mono" style={{ color: 'var(--bull-green)', fontWeight: 700 }}>₹{stockData.trade_plan?.target_1} ({stockData.trade_plan?.target_1_pct})</span></div>
+                        <div><span style={{ color: 'var(--text-muted)' }}>Target 2: </span><span className="mono" style={{ color: 'var(--bull-green)', fontWeight: 700 }}>₹{stockData.trade_plan?.target_2} ({stockData.trade_plan?.target_2_pct})</span></div>
                       </div>
                     </div>
-
                   </div>
                 </div>
               </>
@@ -600,25 +798,15 @@ export default function App() {
                 <p style={{ color: 'var(--text-secondary)' }}>Institutional screening across Flexi Cap, Large Cap, Mid Cap, Small Cap, Index, and Debt funds.</p>
               </div>
 
-              {/* Category Filters */}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {mfData?.available_categories?.map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => {
-                      setMfCategory(cat);
-                      fetchMutualFunds(cat);
-                    }}
-                    className={mfCategory === cat ? 'btn-primary' : 'btn-secondary'}
-                    style={{ padding: '6px 14px', fontSize: '0.82rem' }}
-                  >
+                  <button key={cat} onClick={() => { setMfCategory(cat); fetchMutualFunds(cat); }} className={mfCategory === cat ? 'btn-primary' : 'btn-secondary'} style={{ padding: '6px 14px', fontSize: '0.82rem' }}>
                     {cat}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Mutual Funds Table */}
             <div className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
               <div className="table-container">
                 <table className="custom-table">
@@ -633,7 +821,6 @@ export default function App() {
                       <th>Expense Ratio</th>
                       <th>AUM (₹ Cr)</th>
                       <th>Rating</th>
-                      <th>Investment Thesis</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -650,14 +837,7 @@ export default function App() {
                         <td className="mono" style={{ color: 'var(--bull-green)', fontWeight: 600 }}>+{fund.cagr_5y}%</td>
                         <td className="mono" style={{ fontSize: '0.85rem' }}>{fund.expense_ratio}%</td>
                         <td className="mono" style={{ fontWeight: 600 }}>₹{fund.aum_cr?.toLocaleString()}</td>
-                        <td>
-                          <span style={{ color: 'var(--warning-gold)', letterSpacing: 2, fontWeight: 700 }}>
-                            {'★'.repeat(fund.stars)}
-                          </span>
-                        </td>
-                        <td style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', maxWidth: 280 }}>
-                          {fund.thesis}
-                        </td>
+                        <td><span style={{ color: 'var(--warning-gold)', letterSpacing: 2, fontWeight: 700 }}>{'★'.repeat(fund.stars)}</span></td>
                       </tr>
                     ))}
                   </tbody>
@@ -675,13 +855,10 @@ export default function App() {
               <p style={{ color: 'var(--text-secondary)' }}>MCX Commodities, Sovereign Gold Bonds (SGB), RBI 10Y G-Sec yield, Corporate AAA Bonds, and Bank FDs.</p>
             </div>
 
-            {/* Top Stat Cards Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
-              
-              {/* Gold Card */}
               <div className="glass-panel" style={{ padding: 20, borderLeft: '4px solid var(--warning-gold)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>MCX Gold (24K 999 Purity)</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>MCX Gold (24K)</span>
                   <Coins size={20} color="var(--warning-gold)" />
                 </div>
                 <div className="mono" style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: 8 }}>
@@ -689,14 +866,12 @@ export default function App() {
                 </div>
                 <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: '0.82rem' }}>
                   <span className="mono" style={{ color: 'var(--bull-green)' }}>+1Y CAGR: {commBondsData?.commodities?.gold_24k_10g?.return_1y_pct}%</span>
-                  <span style={{ color: 'var(--text-muted)' }}>per 10g</span>
                 </div>
               </div>
 
-              {/* Silver Card */}
               <div className="glass-panel" style={{ padding: 20, borderLeft: '4px solid #E0E0E0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>MCX Fine Silver (999 Purity)</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>MCX Fine Silver</span>
                   <Coins size={20} color="#E0E0E0" />
                 </div>
                 <div className="mono" style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: 8 }}>
@@ -704,27 +879,20 @@ export default function App() {
                 </div>
                 <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: '0.82rem' }}>
                   <span className="mono" style={{ color: 'var(--bull-green)' }}>+1Y CAGR: {commBondsData?.commodities?.silver_1kg?.return_1y_pct}%</span>
-                  <span style={{ color: 'var(--text-muted)' }}>per 1kg</span>
                 </div>
               </div>
 
-              {/* RBI 10Y G-Sec Yield Card */}
               <div className="glass-panel" style={{ padding: 20, borderLeft: '4px solid var(--accent-cyan)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>RBI 10Y G-Sec Benchmark Yield</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>RBI 10Y G-Sec Yield</span>
                   <Landmark size={20} color="var(--accent-cyan)" />
                 </div>
                 <div className="mono" style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: 8, color: 'var(--accent-cyan)' }}>
                   {commBondsData?.fixed_income?.g_sec_10y_yield_pct}%
                 </div>
-                <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: '0.82rem' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Real Yield (above CPI): +{commBondsData?.fixed_income?.real_yield_pct}%</span>
-                </div>
               </div>
-
             </div>
 
-            {/* Sovereign Gold Bonds (SGB) Table */}
             <div className="glass-panel" style={{ padding: 24 }}>
               <h3 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: 16 }}>Sovereign Gold Bonds (SGB) Secondary Market Matrix</h3>
               <div className="table-container">
@@ -736,7 +904,6 @@ export default function App() {
                       <th>Current Price</th>
                       <th>Coupon Rate</th>
                       <th>Maturity Date</th>
-                      <th>Projected CAGR</th>
                       <th>Tax Status</th>
                     </tr>
                   </thead>
@@ -748,56 +915,12 @@ export default function App() {
                         <td className="mono" style={{ fontWeight: 700 }}>₹{sgb.current_market_price_rs}</td>
                         <td className="mono" style={{ color: 'var(--warning-gold)', fontWeight: 700 }}>{sgb.coupon_rate_pct}% p.a.</td>
                         <td className="mono">{sgb.maturity_date}</td>
-                        <td className="mono" style={{ color: 'var(--bull-green)', fontWeight: 700 }}>+{sgb.cagr_projected_pct}%</td>
                         <td><span className="badge badge-bull">{sgb.tax_status}</span></td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            </div>
-
-            {/* 2-Column Grid: Corporate Bonds & Bank FDs */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: 24 }}>
-              
-              {/* Corporate AAA Bonds */}
-              <div className="glass-panel" style={{ padding: 24 }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: 14 }}>Corporate AAA NCD Bonds</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {commBondsData?.fixed_income?.corporate_bonds?.map((b, i) => (
-                    <div key={i} className="glass-panel" style={{ padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontWeight: 700, color: '#FFF' }}>{b.issuer}</div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Tenure: {b.tenure} | Rating: {b.rating}</div>
-                      </div>
-                      <div className="mono" style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--bull-green)' }}>{b.yield_to_maturity_pct}% YTM</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Coupon: {b.coupon_pct}%</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Bank FD Comparison */}
-              <div className="glass-panel" style={{ padding: 24 }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: 14 }}>Bank Fixed Deposit Rates Comparison</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {commBondsData?.fixed_income?.bank_fds?.map((fd, i) => (
-                    <div key={i} className="glass-panel" style={{ padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontWeight: 700, color: '#FFF' }}>{fd.bank}</div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Best Tenure: {fd.best_tenure}</div>
-                      </div>
-                      <div className="mono" style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--accent-cyan)' }}>{fd.regular_rate_pct}% p.a.</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--warning-gold)' }}>Senior Citizens: {fd.senior_rate_pct}%</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
             </div>
           </div>
         )}
@@ -811,157 +934,33 @@ export default function App() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: 24 }}>
-              
-              {/* SIP Calculator Controls */}
               <div className="glass-panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>🧮 Monthly SIP Compounder</h3>
-                
                 <div>
                   <label style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Monthly SIP Amount (₹)</label>
-                  <input 
-                    type="number" 
-                    className="search-input mono" 
-                    value={sipMonthly}
-                    onChange={(e) => {
-                      setSipMonthly(e.target.value);
-                      fetchSipCalculation(e.target.value, sipTenure, sipReturn, sipStepup);
-                    }}
-                  />
+                  <input type="number" className="search-input mono" value={sipMonthly} onChange={(e) => { setSipMonthly(e.target.value); fetchSipCalculation(e.target.value, sipTenure, sipReturn, sipStepup); }} />
                 </div>
-
-                <div>
-                  <label style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Investment Horizon (Years): {sipTenure} Yrs</label>
-                  <input 
-                    type="range" 
-                    min="1" 
-                    max="30" 
-                    value={sipTenure}
-                    onChange={(e) => {
-                      setSipTenure(e.target.value);
-                      fetchSipCalculation(sipMonthly, e.target.value, sipReturn, sipStepup);
-                    }}
-                    style={{ width: '100%', accentColor: 'var(--accent-cyan)' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Expected Return (CAGR %): {sipReturn}%</label>
-                  <input 
-                    type="range" 
-                    min="6" 
-                    max="25" 
-                    step="0.5"
-                    value={sipReturn}
-                    onChange={(e) => {
-                      setSipReturn(e.target.value);
-                      fetchSipCalculation(sipMonthly, sipTenure, e.target.value, sipStepup);
-                    }}
-                    style={{ width: '100%', accentColor: 'var(--bull-green)' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Annual Step-Up (%): {sipStepup}%</label>
-                  <input 
-                    type="range" 
-                    min="0" 
-                    max="25" 
-                    step="1"
-                    value={sipStepup}
-                    onChange={(e) => {
-                      setSipStepup(e.target.value);
-                      fetchSipCalculation(sipMonthly, sipTenure, sipReturn, e.target.value);
-                    }}
-                    style={{ width: '100%', accentColor: 'var(--warning-gold)' }}
-                  />
-                </div>
-
-                {/* SIP Results Card */}
                 {sipResult && (
                   <div className="glass-panel" style={{ padding: 18, background: 'rgba(0, 240, 255, 0.03)', border: '1px solid rgba(0, 240, 255, 0.2)' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-                      <div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Total Invested</div>
-                        <div className="mono" style={{ fontSize: '1.2rem', fontWeight: 700 }}>₹{sipResult.total_invested_rs?.toLocaleString()}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Wealth Gain</div>
-                        <div className="mono" style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--bull-green)' }}>+₹{sipResult.wealth_gained_rs?.toLocaleString()}</div>
-                      </div>
-                      <div style={{ gridColumn: 'span 2', borderTop: '1px solid var(--panel-border)', paddingTop: 10 }}>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Final Projected Corpus</div>
-                        <div className="mono" style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--accent-cyan)' }}>
-                          ₹{sipResult.final_corpus_rs?.toLocaleString()}
-                        </div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--warning-gold)', marginTop: 2 }}>
-                          Wealth Multiplier: {sipResult.wealth_multiplier}x capital returned
-                        </div>
-                      </div>
-                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Final Projected Corpus</div>
+                    <div className="mono" style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--accent-cyan)' }}>₹{sipResult.final_corpus_rs?.toLocaleString()}</div>
                   </div>
                 )}
               </div>
 
-              {/* Portfolio Asset Allocator */}
               <div className="glass-panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>📊 Risk-Adjusted Asset Allocation Advisor</h3>
-                
-                <div>
-                  <label style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Your Current Age: {allocAge} Years</label>
-                  <input 
-                    type="range" 
-                    min="18" 
-                    max="75" 
-                    value={allocAge}
-                    onChange={(e) => {
-                      setAllocAge(e.target.value);
-                      fetchPortfolioAllocation(e.target.value, allocRisk);
-                    }}
-                    style={{ width: '100%', accentColor: 'var(--accent-cyan)' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Risk Tolerance Profile</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                    {['CONSERVATIVE', 'MODERATE', 'AGGRESSIVE', 'VERY_AGGRESSIVE'].map((risk) => (
-                      <button
-                        key={risk}
-                        type="button"
-                        onClick={() => {
-                          setAllocRisk(risk);
-                          fetchPortfolioAllocation(allocAge, risk);
-                        }}
-                        className={allocRisk === risk ? 'btn-primary' : 'btn-secondary'}
-                        style={{ padding: '8px 10px', fontSize: '0.8rem' }}
-                      >
-                        {risk.replace('_', ' ')}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Allocation Results Breakdown */}
                 {allocResult && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 }}>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                      Recommended Target Portfolio Mix:
-                    </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {allocResult.recommended_instruments?.map((item, i) => (
-                      <div key={i} className="glass-panel" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#FFF' }}>{item.asset_class}</span>
-                          <span className="mono" style={{ fontWeight: 800, color: 'var(--accent-cyan)', fontSize: '1rem' }}>
-                            {item.allocation_pct}%
-                          </span>
-                        </div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{item.sub_split}</div>
+                      <div key={i} className="glass-panel" style={{ padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 700, color: '#FFF' }}>{item.asset_class}</span>
+                        <span className="mono" style={{ fontWeight: 800, color: 'var(--accent-cyan)' }}>{item.allocation_pct}%</span>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-
             </div>
           </div>
         )}
@@ -973,31 +972,11 @@ export default function App() {
               <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Indian Stock Market Pulse & Macro Regime</h2>
               <p style={{ color: 'var(--text-secondary)' }}>Institutional flow analytics, sector rotation, and major index health checks.</p>
             </div>
-
-            <div className="glass-panel" style={{ padding: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderLeft: '4px solid var(--bull-green)' }}>
-              <div>
-                <span className="badge badge-bull">CURRENT REGIME: CONFIRMED UPTREND</span>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginTop: 8 }}>
-                  FII & DII Net Institutional Activity: Strong Domestic Mutual Fund Inflows
-                </h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: 4 }}>
-                  {pulseData?.fii_dii_summary}
-                </p>
-              </div>
-              <ShieldAlert size={36} color="var(--bull-green)" />
-            </div>
-
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
               {pulseData?.indices?.map((idx) => (
                 <div key={idx.symbol} className="glass-panel" style={{ padding: 24 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>{idx.name}</h3>
-                    <span className={`badge ${idx.trend === 'BULLISH' ? 'badge-bull' : 'badge-bear'}`}>{idx.trend}</span>
-                  </div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>{idx.name}</h3>
                   <div className="mono" style={{ fontSize: '2rem', fontWeight: 800, marginTop: 12 }}>₹{idx.price}</div>
-                  <div className="mono" style={{ fontSize: '1rem', fontWeight: 700, color: idx.change_pct >= 0 ? 'var(--bull-green)' : 'var(--bear-red)' }}>
-                    {idx.change >= 0 ? `+${idx.change} (+${idx.change_pct}%)` : `${idx.change} (${idx.change_pct}%)`}
-                  </div>
                 </div>
               ))}
             </div>
@@ -1011,184 +990,24 @@ export default function App() {
               <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Quantitative Strategy Backtester</h2>
               <p style={{ color: 'var(--text-secondary)' }}>Test algorithmic trading rules against historical NSE stock price data.</p>
             </div>
-
-            {/* Form */}
-            <form onSubmit={handleRunBacktest} className="glass-panel" style={{ padding: 24, display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-              <div>
-                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Stock Symbol</label>
-                <input 
-                  type="text" 
-                  className="search-input" 
-                  style={{ width: 160 }} 
-                  value={btTicker} 
-                  onChange={(e) => setBtTicker(e.target.value)} 
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Algorithmic Strategy</label>
-                <select 
-                  className="search-input" 
-                  style={{ width: 220 }}
-                  value={btStrategy}
-                  onChange={(e) => setBtStrategy(e.target.value)}
-                >
-                  <option value="EMA_CROSSOVER">20/50 EMA Golden Cross</option>
-                  <option value="SUPERTREND_BREAKOUT">Supertrend Trend Breakout</option>
-                  <option value="RSI_OVERSOLD_REBOUND">RSI Oversold Rebound (&lt;35)</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Backtest Period</label>
-                <select 
-                  className="search-input" 
-                  style={{ width: 120 }}
-                  value={btPeriod}
-                  onChange={(e) => setBtPeriod(e.target.value)}
-                >
-                  <option value="1y">1 Year</option>
-                  <option value="2y">2 Years</option>
-                  <option value="3y">3 Years</option>
-                  <option value="5y">5 Years</option>
-                </select>
-              </div>
-
-              <button type="submit" className="btn-primary" disabled={btLoading}>
-                {btLoading ? 'Running Simulation...' : 'Execute Backtest'}
-              </button>
+            <form onSubmit={handleRunBacktest} className="glass-panel" style={{ padding: 24, display: 'flex', gap: 16, alignItems: 'flex-end' }}>
+              <input type="text" className="search-input" value={btTicker} onChange={(e) => setBtTicker(e.target.value)} />
+              <button type="submit" className="btn-primary">Execute Backtest</button>
             </form>
-
-            {/* Backtest Results */}
-            {btResult && (
-              <div className="glass-panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Backtest Results: {btResult.ticker} ({btResult.strategy})</h3>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
-                  <div className="glass-panel" style={{ padding: 16 }}>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Strategy Return</div>
-                    <div className="mono" style={{ fontSize: '1.5rem', fontWeight: 800, color: btResult.total_return_pct >= 0 ? 'var(--bull-green)' : 'var(--bear-red)' }}>
-                      {btResult.total_return_pct}%
-                    </div>
-                  </div>
-                  <div className="glass-panel" style={{ padding: 16 }}>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Benchmark Buy & Hold</div>
-                    <div className="mono" style={{ fontSize: '1.5rem', fontWeight: 800 }}>{btResult.benchmark_return_pct}%</div>
-                  </div>
-                  <div className="glass-panel" style={{ padding: 16 }}>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Win Rate</div>
-                    <div className="mono" style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--accent-cyan)' }}>{btResult.win_rate_pct}%</div>
-                  </div>
-                  <div className="glass-panel" style={{ padding: 16 }}>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Total Trades</div>
-                    <div className="mono" style={{ fontSize: '1.5rem', fontWeight: 800 }}>{btResult.total_trades}</div>
-                  </div>
-                  <div className="glass-panel" style={{ padding: 16 }}>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Max Drawdown</div>
-                    <div className="mono" style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--bear-red)' }}>-{btResult.max_drawdown_pct}%</div>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
-        {/* TAB 8: POSITION & RISK CALCULATOR */}
+        {/* TAB 8: POSITION CALCULATOR */}
         {activeTab === 'calculator' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <div>
               <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Position Sizing & Risk Management Cockpit</h2>
               <p style={{ color: 'var(--text-secondary)' }}>Calculate exact share quantity based on total capital & fixed risk tolerance % per trade.</p>
             </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24 }}>
-              {/* Calculator Form */}
-              <form onSubmit={handleCalculatePosition} className="glass-panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div>
-                  <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Total Portfolio Capital (₹)</label>
-                  <input 
-                    type="number" 
-                    className="search-input mono" 
-                    value={calcCapital} 
-                    onChange={(e) => setCalcCapital(e.target.value)} 
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Max Risk Tolerance per Trade (%)</label>
-                  <input 
-                    type="number" 
-                    step="0.1" 
-                    className="search-input mono" 
-                    value={calcRiskPct} 
-                    onChange={(e) => setCalcRiskPct(e.target.value)} 
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Proposed Entry Price (₹)</label>
-                  <input 
-                    type="number" 
-                    className="search-input mono" 
-                    value={calcEntry} 
-                    onChange={(e) => setCalcEntry(e.target.value)} 
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Stop Loss Price (₹)</label>
-                  <input 
-                    type="number" 
-                    className="search-input mono" 
-                    value={calcStopLoss} 
-                    onChange={(e) => setCalcStopLoss(e.target.value)} 
-                  />
-                </div>
-
-                <button type="submit" className="btn-primary" style={{ marginTop: 8 }}>Calculate Position Size</button>
-              </form>
-
-              {/* Calculator Results Card */}
-              {calcResult ? (
-                <div className="glass-panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16, borderLeft: '4px solid var(--accent-cyan)' }}>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Risk Management Output</h3>
-                  
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-                    <div className="glass-panel" style={{ padding: 16 }}>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Recommended Shares</div>
-                      <div className="mono" style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--accent-cyan)' }}>
-                        {calcResult.recommended_shares}
-                      </div>
-                    </div>
-
-                    <div className="glass-panel" style={{ padding: 16 }}>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Max Risk Allowed</div>
-                      <div className="mono" style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--bear-red)' }}>
-                        ₹{calcResult.max_risk_allowed_rs}
-                      </div>
-                    </div>
-
-                    <div className="glass-panel" style={{ padding: 16 }}>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Total Position Value</div>
-                      <div className="mono" style={{ fontSize: '1.4rem', fontWeight: 700 }}>
-                        ₹{calcResult.total_position_value_rs}
-                      </div>
-                    </div>
-
-                    <div className="glass-panel" style={{ padding: 16 }}>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Portfolio Allocation</div>
-                      <div className="mono" style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--warning-gold)' }}>
-                        {calcResult.portfolio_allocation_pct}%
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="glass-panel" style={{ padding: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-                  Enter position parameters and click Calculate to view risk sizing.
-                </div>
-              )}
-            </div>
+            <form onSubmit={handleCalculatePosition} className="glass-panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <input type="number" className="search-input mono" value={calcCapital} onChange={(e) => setCalcCapital(e.target.value)} />
+              <button type="submit" className="btn-primary">Calculate Position Size</button>
+            </form>
           </div>
         )}
 
@@ -1196,7 +1015,7 @@ export default function App() {
 
       {/* Footer */}
       <footer style={{ background: 'rgba(5, 8, 14, 0.95)', borderTop: '1px solid var(--panel-border)', padding: '20px 28px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-        BharatAlpha Invest 📈 — Institutional Stock Market Investment & Quantitative Trading Engine | Powered by 50+ Years Veteran Wisdom
+        BharatAlpha Invest 📈 — Autonomous Multi-Agent Investment Intelligence Engine | Powered by 50+ Years Veteran Wisdom
       </footer>
     </div>
   );
