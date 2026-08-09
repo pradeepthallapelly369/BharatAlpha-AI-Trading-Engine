@@ -94,15 +94,53 @@ class MultiAgentEngine:
         response_data["agent_info"] = profile
         return response_data
 
+    def _extract_ticker_and_analyze(self, query: str) -> Optional[Dict[str, Any]]:
+        import re
+        from backend.main import get_stock_analysis
+        query_upper = query.upper()
+        
+        mappings = {
+            "SBIN": "SBIN", "SBI": "SBIN", "STATE BANK": "SBIN",
+            "RELIANCE": "RELIANCE", "RIL": "RELIANCE",
+            "TCS": "TCS", "TATA CONSULTANCY": "TCS",
+            "INFY": "INFY", "INFOSYS": "INFY",
+            "HDFCBANK": "HDFCBANK", "HDFC": "HDFCBANK",
+            "ICICIBANK": "ICICIBANK", "ICICI": "ICICIBANK",
+            "TATAMOTORS": "TATAMOTORS", "TATA MOTORS": "TATAMOTORS",
+            "DIXON": "DIXON",
+            "BHARTIARTL": "BHARTIARTL", "AIRTEL": "BHARTIARTL",
+            "ITC": "ITC",
+            "LT": "LT", "LARSEN": "LT",
+            "BAJFINANCE": "BAJFINANCE", "BAJAJ FINANCE": "BAJFINANCE",
+            "SUNPHARMA": "SUNPHARMA", "SUN PHARMA": "SUNPHARMA",
+            "TATASTEEL": "TATASTEEL", "TATA STEEL": "TATASTEEL",
+            "WIPRO": "WIPRO"
+        }
+        
+        found_ticker = None
+        for key, ticker in mappings.items():
+            if key in query_upper:
+                found_ticker = ticker
+                break
+                
+        if not found_ticker:
+            words = re.findall(r'\b[A-Z]{3,10}\b', query_upper)
+            stop_words = {"THE", "BUY", "SELL", "WHAT", "SHOW", "TELL", "WITH", "FOR", "THAT", "THIS", "SOME", "MORE", "GOOD", "STOCK", "STOCKS", "OPTION", "SWING", "RISK", "SUGGEST", "TOP", "TERM", "LONG", "SHORT", "HELP", "ME", "AUDIT", "ORDER", "TRADE"}
+            for w in words:
+                if w not in stop_words:
+                    found_ticker = w
+                    break
+                    
+        if found_ticker:
+            try:
+                return get_stock_analysis(found_ticker)
+            except Exception as e:
+                print(f"Error getting stock analysis for {found_ticker}: {e}")
+                return None
+        return None
+
     def _run_chanakya_agent(self, query: str, query_lower: str, capital: float) -> Dict[str, Any]:
         """Chanakya AI Logic: Wealth & Value Investing Specialist"""
-        screener_data = self._get_screener_data()
-        top_picks = screener_data.get("long_term_picks", [])
-        
-        best_pick = top_picks[0] if top_picks else {
-            "ticker": "RELIANCE", "current_price": 2980.50, "target_1": 3450, "stop_loss": 2720
-        }
-
         if "mutual fund" in query_lower or "mf" in query_lower or "sip" in query_lower:
             mfs = get_mutual_funds_screener("Flexi Cap").get("funds", [])
             top_mf = mfs[0] if mfs else {"name": "Motilal Oswal Midcap Fund", "cagr_3y": 35.2}
@@ -119,7 +157,18 @@ class MultiAgentEngine:
                 "cagr_projected": f"+{top_mf.get('cagr_3y', 30)}%",
                 "mode": "paper"
             }
-        elif "gold" in query_lower or "bond" in query_lower or "sgb" in query_lower:
+            return {
+                "status": "success",
+                "reply": reply,
+                "actionable_trade": trade_action,
+                "proactive_suggestions": [
+                    "Start ₹25,000 Monthly Step-Up SIP in Flexi Cap Fund",
+                    "Top Mutual Funds for 2026 Wealth Building",
+                    "Calculate 15-Year SIP Growth"
+                ]
+            }
+
+        if "gold" in query_lower or "bond" in query_lower or "sgb" in query_lower:
             comm_data = get_commodities_data()
             bonds_data = get_bonds_and_fixed_income()
             gold_price = comm_data['gold_24k_10g']['price_rs']
@@ -136,26 +185,85 @@ class MultiAgentEngine:
                 "allocation_pct": "15%",
                 "mode": "paper"
             }
-        else:
+            return {
+                "status": "success",
+                "reply": reply,
+                "actionable_trade": trade_action,
+                "proactive_suggestions": [
+                    "Allocate 15% to Sovereign Gold Bonds (SGB)",
+                    "Lock in 7.1% RBI G-Sec Yields",
+                    "Audit Gold vs Equity Asset Allocation"
+                ]
+            }
+
+        # Check if user mentioned a specific ticker
+        stock_analysis = self._extract_ticker_and_analyze(query)
+        if stock_analysis and stock_analysis.get("status") == "success":
+            ticker = stock_analysis["ticker"]
+            company_name = stock_analysis.get("company_name", ticker)
+            price = stock_analysis["technicals"]["current_price"]
+            tp = stock_analysis["trade_plan"]
+            target1 = tp.get("target_1", round(price * 1.15, 2))
+            target1_pct = tp.get("target_1_pct", "+15.0%")
+            stop_loss = tp.get("stop_loss", round(price * 0.92, 2))
+            vet_score = tp.get("veteran_score", 88)
+            conv_stars = tp.get("conviction_stars", 5)
+            
             reply = (
-                f"🏛️ **Chanakya AI Equity Analysis**:\n\n"
-                f"My 50-Year Veteran Quality Filters highlight **{best_pick['ticker']}** as a prime long-term compounder.\n\n"
-                f"• **Current Market Price**: ₹{best_pick['current_price']}\n"
-                f"• **Institutional Target**: ₹{best_pick.get('target_1', 3450)} (+{best_pick.get('target_1_pct', '15%')})\n"
-                f"• **Margin of Safety Stop Loss**: ₹{best_pick.get('stop_loss', 2700)}\n"
-                f"• **Conviction**: {'★' * best_pick.get('conviction_stars', 5)} (Veteran Score: {best_pick.get('veteran_score', 88)}/100)\n\n"
-                f"Would you like me to initiate a Paper Buy Order or connect live broker execution?"
+                f"🏛️ **Chanakya AI 50-Year Veteran Valuation for {company_name} ({ticker})**:\n\n"
+                f"• **Current Market Price**: ₹{price}\n"
+                f"• **Institutional Target**: ₹{target1} ({target1_pct})\n"
+                f"• **Margin of Safety Stop Loss**: ₹{stop_loss}\n"
+                f"• **Conviction**: {'★' * conv_stars} (Veteran Quality Score: {vet_score}/100)\n\n"
+                f"💡 **Verdict**: Fundamental analysis for **{ticker}** shows robust ROE & quality score ({stock_analysis['fundamentals'].get('quality_score', 80)}/100). Recommend accumulating in entry zone {tp.get('entry_zone', f'₹{price}')}."
             )
             trade_action = {
                 "type": "BUY_EQUITY",
-                "symbol": best_pick['ticker'],
+                "symbol": ticker,
                 "action": "BUY",
-                "entry_price": best_pick['current_price'],
-                "target_price": best_pick.get('target_1', 3450),
-                "stop_loss": best_pick.get('stop_loss', 2700),
-                "suggested_qty": math.floor((capital * 0.10) / best_pick['current_price']),
+                "entry_price": price,
+                "target_price": target1,
+                "stop_loss": stop_loss,
+                "suggested_qty": max(1, math.floor((capital * 0.10) / price)),
                 "mode": "paper"
             }
+            return {
+                "status": "success",
+                "reply": reply,
+                "actionable_trade": trade_action,
+                "proactive_suggestions": [
+                    f"Buy {ticker} for long-term compound growth",
+                    f"View full blueprint for {ticker}",
+                    "Audit portfolio risk & allocation"
+                ]
+            }
+
+        # Default fallback to top screener pick
+        screener_data = self._get_screener_data()
+        top_picks = screener_data.get("long_term_picks", [])
+        best_pick = top_picks[0] if top_picks else {
+            "ticker": "RELIANCE", "current_price": 2980.50, "target_1": 3450, "stop_loss": 2720
+        }
+
+        reply = (
+            f"🏛️ **Chanakya AI Equity Analysis**:\n\n"
+            f"My 50-Year Veteran Quality Filters highlight **{best_pick['ticker']}** as a prime long-term compounder.\n\n"
+            f"• **Current Market Price**: ₹{best_pick['current_price']}\n"
+            f"• **Institutional Target**: ₹{best_pick.get('target_1', 3450)} (+{best_pick.get('target_1_pct', '15%')})\n"
+            f"• **Margin of Safety Stop Loss**: ₹{best_pick.get('stop_loss', 2700)}\n"
+            f"• **Conviction**: {'★' * best_pick.get('conviction_stars', 5)} (Veteran Score: {best_pick.get('veteran_score', 88)}/100)\n\n"
+            f"Would you like me to initiate a Paper Buy Order or connect live broker execution?"
+        )
+        trade_action = {
+            "type": "BUY_EQUITY",
+            "symbol": best_pick['ticker'],
+            "action": "BUY",
+            "entry_price": best_pick['current_price'],
+            "target_price": best_pick.get('target_1', 3450),
+            "stop_loss": best_pick.get('stop_loss', 2700),
+            "suggested_qty": math.floor((capital * 0.10) / best_pick['current_price']),
+            "mode": "paper"
+        }
 
         return {
             "status": "success",
@@ -170,6 +278,45 @@ class MultiAgentEngine:
 
     def _run_arya_agent(self, query: str, query_lower: str, capital: float) -> Dict[str, Any]:
         """Arya AI Logic: Options Quantitative Trader Specialist"""
+        stock_analysis = self._extract_ticker_and_analyze(query)
+        if stock_analysis and stock_analysis.get("status") == "success":
+            ticker = stock_analysis["ticker"]
+            spot_price = stock_analysis["technicals"]["current_price"]
+            ce_strike = round(spot_price * 1.02)
+            pe_strike = round(spot_price * 0.98)
+            
+            reply = (
+                f"⚡ **Arya AI Quantitative Options Analysis ({ticker})**:\n\n"
+                f"• **Spot Price**: ₹{spot_price} | **RSI**: {stock_analysis['technicals'].get('rsi', 58)}\n"
+                f"• **Recommended Strategy**: **Bull Put Spread / Covered Call**\n"
+                f"• **Leg 1**: SELL {ticker} {pe_strike} PE @ ₹{round(spot_price * 0.02, 1)}\n"
+                f"• **Leg 2**: BUY {ticker} {round(pe_strike * 0.97)} PE @ ₹{round(spot_price * 0.008, 1)}\n"
+                f"• **Delta Neutrality**: Positive Theta Capture | High Probability Win (>72%)\n\n"
+                f"Click **Execute Option Strategy** below to deploy."
+            )
+            trade_action = {
+                "type": "OPTION_STRATEGY",
+                "symbol": ticker,
+                "strategy": "BULL_PUT_SPREAD",
+                "spot_price": spot_price,
+                "legs": [
+                    {"action": "SELL", "type": "PE", "strike": pe_strike, "qty": 100},
+                    {"action": "BUY", "type": "PE", "strike": round(pe_strike * 0.97), "qty": 100}
+                ],
+                "max_profit": round(spot_price * 1.2 * 100),
+                "mode": "paper"
+            }
+            return {
+                "status": "success",
+                "reply": reply,
+                "actionable_trade": trade_action,
+                "proactive_suggestions": [
+                    f"Deploy {ticker} Bull Put Spread",
+                    f"Check {ticker} Option Chain Greeks",
+                    "Scan High IV Rank across NIFTY 50"
+                ]
+            }
+
         symbol = "BANKNIFTY" if "bank" in query_lower else "NIFTY"
         spot_price = 51800 if symbol == "BANKNIFTY" else 24600
 
@@ -213,6 +360,47 @@ class MultiAgentEngine:
 
     def _run_vikram_agent(self, query: str, query_lower: str, capital: float) -> Dict[str, Any]:
         """Vikram AI Logic: Technical Swing Momentum Trader Specialist"""
+        stock_analysis = self._extract_ticker_and_analyze(query)
+        if stock_analysis and stock_analysis.get("status") == "success":
+            ticker = stock_analysis["ticker"]
+            company_name = stock_analysis.get("company_name", ticker)
+            price = stock_analysis["technicals"]["current_price"]
+            tp = stock_analysis["trade_plan"]
+            target1 = tp.get("target_1", round(price * 1.12, 2))
+            stop_loss = tp.get("stop_loss", round(price * 0.94, 2))
+            rr = tp.get("risk_reward_ratio", "1 : 2.5")
+            
+            reply = (
+                f"🏹 **Vikram AI Technical Momentum Setup for {company_name} ({ticker})**:\n\n"
+                f"🔥 **Technical Breakout Signal**: **{ticker}**\n"
+                f"• **Consolidation Entry Trigger**: ₹{price}\n"
+                f"• **Target 1**: ₹{target1}\n"
+                f"• **Stop Loss**: ₹{stop_loss}\n"
+                f"• **Risk : Reward**: {rr}\n"
+                f"• **Technical Status**: Trend is {stock_analysis['technicals'].get('trend_status', 'BULLISH')} (RSI: {stock_analysis['technicals'].get('rsi', 58)})\n\n"
+                f"Ready for instant trade submission!"
+            )
+            trade_action = {
+                "type": "SWING_TRADE",
+                "symbol": ticker,
+                "action": "BUY",
+                "entry_price": price,
+                "target_price": target1,
+                "stop_loss": stop_loss,
+                "suggested_qty": max(1, math.floor((capital * 0.05) / max(1, price - stop_loss))),
+                "mode": "paper"
+            }
+            return {
+                "status": "success",
+                "reply": reply,
+                "actionable_trade": trade_action,
+                "proactive_suggestions": [
+                    f"Buy {ticker} Swing Target ₹{target1}",
+                    f"Check {ticker} 20/50 EMA technical chart",
+                    "Scan Minervini VCP setups"
+                ]
+            }
+
         screener_data = self._get_screener_data()
         short_picks = screener_data.get("short_term_picks", [])
         

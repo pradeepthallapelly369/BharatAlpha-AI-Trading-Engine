@@ -93,13 +93,15 @@ export default function App() {
   };
 
   const fetchStockDetails = async (tickerSymbol) => {
+    const cleanSym = tickerSymbol.trim().toUpperCase();
+    setSearchTicker(cleanSym);
     setLoading(true);
     try {
-      const res = await fetch(`/api/stock/${tickerSymbol}`);
+      const res = await fetch(`/api/stock/${cleanSym}`);
       const data = await res.json();
       if (data.status === 'success') {
         setStockData(data);
-        fetchStockChart(tickerSymbol);
+        fetchStockChart(cleanSym);
       }
     } catch (e) { console.error('Stock detail error:', e); }
     finally { setLoading(false); }
@@ -270,21 +272,51 @@ export default function App() {
             </div>
           </div>
 
-          {/* Search Form */}
-          <form onSubmit={handleSearch} style={{ display: 'flex', gap: 8, flex: '1 1 300px', maxWidth: 450 }}>
-            <div style={{ position: 'relative', width: '100%' }}>
-              <Search size={18} color="var(--text-muted)" style={{ position: 'absolute', left: 12, top: 12 }} />
-              <input 
-                type="text"
-                className="search-input"
-                placeholder="Search NSE stock (e.g. RELIANCE, TATAMOTORS, DIXON)..."
-                value={searchTicker}
-                onChange={(e) => setSearchTicker(e.target.value)}
-                style={{ paddingLeft: 38 }}
-              />
+          {/* Search Form & Quick Chips */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: '1 1 320px', maxWidth: 480 }}>
+            <form onSubmit={handleSearch} style={{ display: 'flex', gap: 8, width: '100%' }}>
+              <div style={{ position: 'relative', width: '100%' }}>
+                <Search size={18} color="var(--text-muted)" style={{ position: 'absolute', left: 12, top: 12 }} />
+                <input 
+                  type="text"
+                  className="search-input"
+                  placeholder="Search NSE stock (e.g. SBIN, TCS, INFY, RELIANCE)..."
+                  value={searchTicker}
+                  onChange={(e) => setSearchTicker(e.target.value)}
+                  style={{ paddingLeft: 38 }}
+                />
+              </div>
+              <button type="submit" className="btn-primary">Analyze</button>
+            </form>
+            
+            {/* Quick Stock Chips */}
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>⚡ Quick:</span>
+              {['SBIN', 'RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'TATAMOTORS', 'ICICIBANK', 'DIXON', 'BHARTIARTL', 'ITC'].map((stk) => (
+                <button
+                  key={stk}
+                  type="button"
+                  onClick={() => {
+                    fetchStockDetails(stk);
+                    setActiveTab('terminal');
+                  }}
+                  className="btn-secondary"
+                  style={{
+                    padding: '2px 8px',
+                    fontSize: '0.72rem',
+                    borderRadius: 4,
+                    background: searchTicker.toUpperCase() === stk ? 'rgba(0, 240, 255, 0.2)' : 'rgba(255,255,255,0.05)',
+                    border: searchTicker.toUpperCase() === stk ? '1px solid var(--accent-cyan)' : '1px solid rgba(255,255,255,0.1)',
+                    color: searchTicker.toUpperCase() === stk ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {stk}
+                </button>
+              ))}
             </div>
-            <button type="submit" className="btn-primary">Analyze</button>
-          </form>
+          </div>
 
           {/* Indices Quick Bar */}
           <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>

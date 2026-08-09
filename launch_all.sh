@@ -7,7 +7,17 @@
 set -e
 
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV_UVICORN="/home/upc/every_thing_claude/venv_bt/bin/uvicorn"
+
+# Detect uvicorn executable dynamically (local venv or system python)
+if [ -f "$BASE_DIR/../venv_bt/bin/uvicorn" ]; then
+    VENV_UVICORN="$BASE_DIR/../venv_bt/bin/uvicorn"
+elif [ -f "$BASE_DIR/venv/bin/uvicorn" ]; then
+    VENV_UVICORN="$BASE_DIR/venv/bin/uvicorn"
+elif command -v uvicorn > /dev/null 2>&1; then
+    VENV_UVICORN="uvicorn"
+else
+    VENV_UVICORN="python3 -m uvicorn"
+fi
 
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║            BHARAT ALPHA AI DUAL-APP TRADING PLATFORM          ║"
