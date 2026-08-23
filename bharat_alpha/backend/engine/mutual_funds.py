@@ -106,7 +106,7 @@ MUTUAL_FUNDS_DATABASE = [
         "thesis": "High conviction focused mid-cap portfolio operating on 'QGLP' (Quality, Growth, Longevity, Price) principle."
     },
 
-    # ── Small Cap Funds ─────────────────────────────────────────
+    # ── Small Cap & Micro Cap Funds ─────────────────────────────
     {
         "id": "nippon_small",
         "name": "Nippon India Small Cap Fund - Direct Plan",
@@ -139,8 +139,24 @@ MUTUAL_FUNDS_DATABASE = [
         "stars": 5,
         "thesis": "Proprietary VLRT (Value, Liquidity, Risk, Timing) quantitative algorithmic allocation framework."
     },
+    {
+        "id": "motilal_microcap",
+        "name": "Motilal Oswal Nifty Microcap 250 Index Fund - Direct Plan",
+        "amc": "Motilal Oswal Mutual Fund",
+        "category": "Micro Cap",
+        "risk_level": "Very High Risk",
+        "nav": 14.50,
+        "cagr_1y": 85.2,
+        "cagr_3y": 45.1,
+        "cagr_5y": 0.0,
+        "expense_ratio": 0.38,
+        "aum_cr": 1250.0,
+        "min_sip": 500,
+        "stars": 4,
+        "thesis": "Passive wealth creation by tracking the hyper-growth Nifty Microcap 250 index."
+    },
 
-    # ── Index Funds ─────────────────────────────────────────────
+    # ── Index Funds (Market Cap Based) ──────────────────────────
     {
         "id": "uti_nifty50",
         "name": "UTI Nifty 50 Index Fund - Direct Plan",
@@ -158,20 +174,134 @@ MUTUAL_FUNDS_DATABASE = [
         "thesis": "Lowest tracking error and minimal expense ratio (0.05%) tracking India's top 50 industrial titans."
     },
     {
-        "id": "navi_nifty50",
-        "name": "Navi Nifty 50 Index Fund - Direct Plan",
-        "amc": "Navi Mutual Fund",
+        "id": "uti_next50",
+        "name": "UTI Nifty Next 50 Index Fund - Direct Plan",
+        "amc": "UTI Mutual Fund",
         "category": "Index Fund",
         "risk_level": "Very High Risk",
-        "nav": 15.80,
-        "cagr_1y": 24.7,
-        "cagr_3y": 16.8,
-        "cagr_5y": 16.1,
-        "expense_ratio": 0.06,
-        "aum_cr": 2100.0,
+        "nav": 24.30,
+        "cagr_1y": 62.4,
+        "cagr_3y": 25.1,
+        "cagr_5y": 19.3,
+        "expense_ratio": 0.34,
+        "aum_cr": 4500.0,
+        "min_sip": 500,
+        "stars": 4,
+        "thesis": "Captures the growth of potential future Nifty 50 companies (ranks 51-100)."
+    },
+    {
+        "id": "nippon_nifty250",
+        "name": "Nippon India Nifty LargeMidcap 250 Index Fund - Direct",
+        "amc": "Nippon India Mutual Fund",
+        "category": "Index Fund",
+        "risk_level": "Very High Risk",
+        "nav": 12.10,
+        "cagr_1y": 42.5,
+        "cagr_3y": 22.8,
+        "cagr_5y": 0.0,
+        "expense_ratio": 0.25,
+        "aum_cr": 800.0,
         "min_sip": 100,
         "stars": 4,
-        "thesis": "Ultra-low cost index tracking for passive long-term wealth accumulation."
+        "thesis": "Broad market index tracking top 250 companies with balanced 50-50 Large/Midcap exposure."
+    },
+    {
+        "id": "motilal_midcap150",
+        "name": "Motilal Oswal Nifty Midcap 150 Index Fund - Direct",
+        "amc": "Motilal Oswal Mutual Fund",
+        "category": "Index Fund",
+        "risk_level": "Very High Risk",
+        "nav": 36.20,
+        "cagr_1y": 55.4,
+        "cagr_3y": 30.2,
+        "cagr_5y": 27.1,
+        "expense_ratio": 0.21,
+        "aum_cr": 1500.0,
+        "min_sip": 500,
+        "stars": 5,
+        "thesis": "Complete passive exposure to the midcap universe for aggressive wealth compounding."
+    },
+    {
+        "id": "nippon_smallcap250",
+        "name": "Nippon India Nifty Smallcap 250 Index Fund - Direct",
+        "amc": "Nippon India Mutual Fund",
+        "category": "Index Fund",
+        "risk_level": "Very High Risk",
+        "nav": 32.80,
+        "cagr_1y": 68.3,
+        "cagr_3y": 33.5,
+        "cagr_5y": 29.8,
+        "expense_ratio": 0.30,
+        "aum_cr": 1200.0,
+        "min_sip": 100,
+        "stars": 4,
+        "thesis": "Complete passive exposure to the entire smallcap universe (ranks 251-500)."
+    },
+
+    # ── Sectoral & Thematic Funds ──────────────────────────────
+    {
+        "id": "icici_it",
+        "name": "ICICI Prudential Technology Fund - Direct Plan",
+        "amc": "ICICI Prudential Mutual Fund",
+        "category": "Sectoral / Thematic",
+        "risk_level": "Very High Risk",
+        "nav": 195.40,
+        "cagr_1y": 35.6,
+        "cagr_3y": 12.4,
+        "cagr_5y": 25.1,
+        "expense_ratio": 0.89,
+        "aum_cr": 12300.0,
+        "min_sip": 100,
+        "stars": 4,
+        "thesis": "Capitalizes on global digital transformation and Indian IT services dominance."
+    },
+    {
+        "id": "sbi_bank",
+        "name": "SBI Banking & Financial Services Fund - Direct Plan",
+        "amc": "SBI Mutual Fund",
+        "category": "Sectoral / Thematic",
+        "risk_level": "Very High Risk",
+        "nav": 35.80,
+        "cagr_1y": 28.2,
+        "cagr_3y": 18.5,
+        "cagr_5y": 14.2,
+        "expense_ratio": 0.75,
+        "aum_cr": 5400.0,
+        "min_sip": 500,
+        "stars": 4,
+        "thesis": "Focused on India's credit growth cycle and expanding financialization."
+    },
+    {
+        "id": "nippon_pharma",
+        "name": "Nippon India Pharma Fund - Direct Plan",
+        "amc": "Nippon India Mutual Fund",
+        "category": "Sectoral / Thematic",
+        "risk_level": "Very High Risk",
+        "nav": 420.50,
+        "cagr_1y": 45.1,
+        "cagr_3y": 15.2,
+        "cagr_5y": 22.8,
+        "expense_ratio": 0.95,
+        "aum_cr": 7200.0,
+        "min_sip": 100,
+        "stars": 5,
+        "thesis": "Defensive growth strategy focusing on Indian pharma exports and domestic healthcare."
+    },
+    {
+        "id": "tata_infrastructure",
+        "name": "Tata Infrastructure Fund - Direct Plan",
+        "amc": "Tata Mutual Fund",
+        "category": "Sectoral / Thematic",
+        "risk_level": "Very High Risk",
+        "nav": 155.20,
+        "cagr_1y": 72.4,
+        "cagr_3y": 38.6,
+        "cagr_5y": 28.4,
+        "expense_ratio": 1.05,
+        "aum_cr": 2500.0,
+        "min_sip": 150,
+        "stars": 4,
+        "thesis": "Plays the India capex, manufacturing, and infrastructure boom cycle."
     },
 
     # ── Hybrid & Debt Funds ────────────────────────────────────

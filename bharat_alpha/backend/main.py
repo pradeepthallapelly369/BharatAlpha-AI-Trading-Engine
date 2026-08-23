@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from backend.engine.technicals import analyze_stock_technicals
 from backend.engine.fundamentals import analyze_stock_fundamentals
 from backend.engine.trade_planner import generate_trade_plan
-from backend.screener import run_screener_scan
+from backend.screener import run_screener_scan, UNIVERSES_DICT
 from backend.backtester import run_strategy_backtest
 from backend.ai_analyst import generate_veteran_ai_memo
 from backend.engine.mutual_funds import get_mutual_funds_screener
@@ -61,7 +61,18 @@ def get_market_pulse():
     Returns live Indian stock market indices (Nifty 50, Bank Nifty, Sensex)
     and overall market regime indicator.
     """
-    indices = {"^NSEI": "NIFTY 50", "^NSEBANK": "NIFTY BANK", "^BSESN": "SENSEX"}
+    indices = {
+        "^NSEI": "NIFTY 50", 
+        "^CRSLDX": "NIFTY NEXT 50", # Proxy ticker
+        "^NSEMDCP50": "NIFTY MIDCAP 50",
+        "^CNXSC": "NIFTY SMALLCAP 100",
+        "^CNXMCC": "NIFTY MICROCAP 250",
+        "^NSEBANK": "NIFTY BANK", 
+        "^CNXIT": "NIFTY IT",
+        "^CNXAUTO": "NIFTY AUTO",
+        "^CNXPHARMA": "NIFTY PHARMA",
+        "^BSESN": "SENSEX"
+    }
     results = []
     
     for symbol, name in indices.items():
@@ -84,13 +95,34 @@ def get_market_pulse():
         except Exception as e:
             print(f"Error fetching pulse for {symbol}: {e}")
 
-    # Fallback or synthetic pulse if market data fails
-    if not results:
-        results = [
-            {"symbol": "^NSEI", "name": "NIFTY 50", "price": 24350.50, "change": 142.30, "change_pct": 0.59, "trend": "BULLISH"},
-            {"symbol": "^NSEBANK", "name": "NIFTY BANK", "price": 52110.80, "change": -85.20, "change_pct": -0.16, "trend": "BEARISH"},
-            {"symbol": "^BSESN", "name": "SENSEX", "price": 79890.10, "change": 410.50, "change_pct": 0.52, "trend": "BULLISH"}
-        ]
+    # Fallback or synthetic pulse if market data fails or is missing for some indices
+    if len(results) < len(indices):
+        fallback_data = {
+            "^NSEI": {"price": 24350.50, "change": 142.30, "change_pct": 0.59},
+            "^CRSLDX": {"price": 72540.20, "change": 230.15, "change_pct": 0.32},
+            "^NSEMDCP50": {"price": 14250.60, "change": 180.40, "change_pct": 1.28},
+            "^CNXSC": {"price": 18950.30, "change": 320.10, "change_pct": 1.72},
+            "^CNXMCC": {"price": 29800.00, "change": 450.50, "change_pct": 1.53},
+            "^NSEBANK": {"price": 52110.80, "change": -85.20, "change_pct": -0.16},
+            "^CNXIT": {"price": 38450.10, "change": 520.40, "change_pct": 1.37},
+            "^CNXAUTO": {"price": 23140.70, "change": 110.20, "change_pct": 0.48},
+            "^CNXPHARMA": {"price": 19560.80, "change": 220.30, "change_pct": 1.14},
+            "^BSESN": {"price": 79890.10, "change": 410.50, "change_pct": 0.52}
+        }
+        
+        # Merge fetched results with fallbacks for missing ones
+        fetched_symbols = {r["symbol"] for r in results}
+        for symbol, name in indices.items():
+            if symbol not in fetched_symbols:
+                fb = fallback_data.get(symbol, {"price": 10000.0, "change": 50.0, "change_pct": 0.5})
+                results.append({
+                    "symbol": symbol,
+                    "name": name,
+                    "price": fb["price"],
+                    "change": fb["change"],
+                    "change_pct": fb["change_pct"],
+                    "trend": "BULLISH" if fb["change_pct"] >= 0 else "BEARISH"
+                })
 
     return {
         "status": "success",
@@ -100,13 +132,29 @@ def get_market_pulse():
     }
 
 @app.get("/api/screener")
-def get_screener_recommendations():
+def get_screener_recommendations(universe: str = Query("DEFAULT")):
     """
-    Scans NSE stocks and returns pre-indexed Long-Term & Short-Term picks.
+    Scans NSE stocks and returns pre-indexed Long-Term & Short-Term picks based on selected universe.
+    Universes: NIFTY_50, NIFTY_NEXT_50, NIFTY_MIDCAP, NIFTY_SMALLCAP, NIFTY_MICROCAP, SECTORAL_IT, etc.
     """
-    scan_data = run_screener_scan()
+    if universe.upper() == "DYNAMIC_5000CR":
+        import os, json
+        path = os.path.join(os.path.dirname(__file__), "engine", "dynamic_universes.json")
+        tickers = UNIVERSES_DICT["DEFAULT"]
+        if os.path.exists(path):
+            try:
+                with open(path, "r") as f:
+                    data = json.load(f)
+                    tickers = data.get("universe", tickers)
+            except Exception as e:
+                print(f"Error loading dynamic universe: {e}")
+    else:
+        tickers = UNIVERSES_DICT.get(universe.upper(), UNIVERSES_DICT["DEFAULT"])
+        
+    scan_data = run_screener_scan(tickers=tickers)
     return sanitize_json_obj({
         "status": "success",
+        "universe_scanned": universe.upper(),
         "data": scan_data
     })
 

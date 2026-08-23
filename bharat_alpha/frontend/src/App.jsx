@@ -14,6 +14,7 @@ export default function App() {
   const [pulseData, setPulseData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [screenerFilter, setScreenerFilter] = useState('long_term');
+  const [screenerUniverse, setScreenerUniverse] = useState('DEFAULT');
   
   // Mutual Funds state
   const [mfCategory, setMfCategory] = useState('ALL');
@@ -67,7 +68,7 @@ export default function App() {
   // Initial Data Fetch
   useEffect(() => {
     fetchMarketPulse();
-    fetchScreener();
+    fetchScreener('DEFAULT');
     fetchStockDetails('RELIANCE');
     fetchMutualFunds('ALL');
     fetchCommoditiesBonds();
@@ -84,12 +85,15 @@ export default function App() {
     } catch (e) { console.error('Pulse fetch error:', e); }
   };
 
-  const fetchScreener = async () => {
+  const fetchScreener = async (universe = 'DEFAULT') => {
+    setLoading(true);
+    setScreenerData(null); // Clear old data to prevent UI ghosting
     try {
-      const res = await fetch('/api/screener');
+      const res = await fetch(`/api/screener?universe=${universe}`);
       const data = await res.json();
       setScreenerData(data.data);
     } catch (e) { console.error('Screener fetch error:', e); }
+    finally { setLoading(false); }
   };
 
   const fetchStockDetails = async (tickerSymbol) => {
@@ -582,7 +586,30 @@ export default function App() {
                 </p>
               </div>
 
-              <div className="glass-panel" style={{ padding: 4, display: 'flex', gap: 4 }}>
+              <div className="glass-panel" style={{ padding: 4, display: 'flex', gap: 8, alignItems: 'center' }}>
+                <select 
+                  className="search-input" 
+                  style={{ width: 'auto', padding: '6px 12px', fontSize: '0.85rem' }}
+                  value={screenerUniverse}
+                  onChange={(e) => {
+                    setScreenerUniverse(e.target.value);
+                    fetchScreener(e.target.value);
+                  }}
+                >
+                  <option value="DEFAULT">Default Universe (20 Stocks)</option>
+                  <option value="NIFTY_50">Nifty 50</option>
+                  <option value="NIFTY_NEXT_50">Nifty Next 50</option>
+                  <option value="NIFTY_MIDCAP">Nifty Midcap</option>
+                  <option value="NIFTY_SMALLCAP">Nifty Smallcap</option>
+                  <option value="NIFTY_MICROCAP">Nifty Microcap</option>
+                  <option value="DYNAMIC_5000CR">All Stocks &gt; ₹5000 Cr</option>
+                  <option value="SECTORAL_IT">IT Sector</option>
+                  <option value="SECTORAL_BANK">Banking Sector</option>
+                  <option value="SECTORAL_AUTO">Auto Sector</option>
+                  <option value="SECTORAL_PHARMA">Pharma Sector</option>
+                  <option value="SECTORAL_INFRA">Infra Sector</option>
+                </select>
+                <div style={{ height: '24px', width: '1px', background: 'var(--panel-border)' }}></div>
                 <button
                   onClick={() => setScreenerFilter('long_term')}
                   className={screenerFilter === 'long_term' ? 'btn-primary' : 'btn-secondary'}

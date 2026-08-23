@@ -7,9 +7,10 @@
 
 set -e
 
-PROJECT_DIR="/home/upc/every_thing_claude/bharat_alpha"
-VENV_PYTHON="/home/upc/every_thing_claude/venv_bt/bin/python3"
-VENV_UVICORN="/home/upc/every_thing_claude/venv_bt/bin/uvicorn"
+BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$BASE_DIR"
+VENV_PYTHON="${BASE_DIR}/../../venv_bt/bin/python3"
+VENV_UVICORN="${BASE_DIR}/../../venv_bt/bin/uvicorn"
 FRONTEND_DIR="${PROJECT_DIR}/frontend"
 LOG_DIR="${PROJECT_DIR}/logs"
 
