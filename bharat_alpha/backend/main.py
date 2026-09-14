@@ -8,12 +8,15 @@ from pydantic import BaseModel
 from backend.engine.technicals import analyze_stock_technicals
 from backend.engine.fundamentals import analyze_stock_fundamentals
 from backend.engine.trade_planner import generate_trade_plan
-from backend.screener import run_screener_scan, UNIVERSES_DICT
+from backend.screener import run_screener_scan
 from backend.backtester import run_strategy_backtest
 from backend.ai_analyst import generate_veteran_ai_memo
 from backend.engine.mutual_funds import get_mutual_funds_screener
 from backend.engine.commodities_bonds import get_commodities_data, get_bonds_and_fixed_income
 from backend.engine.portfolio_advisor import calculate_sip_growth, generate_asset_allocation
+from backend.engine.buffett_screener import run_buffett_scan
+from backend.engine.market_monitor import get_daily_market_movers
+from backend.engine.tauric_research import drona_engine
 
 app = FastAPI(
     title="BharatAlpha AI - Stock Market Investment & Algo-Trading API",
@@ -61,18 +64,7 @@ def get_market_pulse():
     Returns live Indian stock market indices (Nifty 50, Bank Nifty, Sensex)
     and overall market regime indicator.
     """
-    indices = {
-        "^NSEI": "NIFTY 50", 
-        "^CRSLDX": "NIFTY NEXT 50", # Proxy ticker
-        "^NSEMDCP50": "NIFTY MIDCAP 50",
-        "^CNXSC": "NIFTY SMALLCAP 100",
-        "^CNXMCC": "NIFTY MICROCAP 250",
-        "^NSEBANK": "NIFTY BANK", 
-        "^CNXIT": "NIFTY IT",
-        "^CNXAUTO": "NIFTY AUTO",
-        "^CNXPHARMA": "NIFTY PHARMA",
-        "^BSESN": "SENSEX"
-    }
+    indices = {"^NSEI": "NIFTY 50", "^NSEBANK": "NIFTY BANK", "^BSESN": "SENSEX"}
     results = []
     
     for symbol, name in indices.items():
@@ -95,34 +87,13 @@ def get_market_pulse():
         except Exception as e:
             print(f"Error fetching pulse for {symbol}: {e}")
 
-    # Fallback or synthetic pulse if market data fails or is missing for some indices
-    if len(results) < len(indices):
-        fallback_data = {
-            "^NSEI": {"price": 24350.50, "change": 142.30, "change_pct": 0.59},
-            "^CRSLDX": {"price": 72540.20, "change": 230.15, "change_pct": 0.32},
-            "^NSEMDCP50": {"price": 14250.60, "change": 180.40, "change_pct": 1.28},
-            "^CNXSC": {"price": 18950.30, "change": 320.10, "change_pct": 1.72},
-            "^CNXMCC": {"price": 29800.00, "change": 450.50, "change_pct": 1.53},
-            "^NSEBANK": {"price": 52110.80, "change": -85.20, "change_pct": -0.16},
-            "^CNXIT": {"price": 38450.10, "change": 520.40, "change_pct": 1.37},
-            "^CNXAUTO": {"price": 23140.70, "change": 110.20, "change_pct": 0.48},
-            "^CNXPHARMA": {"price": 19560.80, "change": 220.30, "change_pct": 1.14},
-            "^BSESN": {"price": 79890.10, "change": 410.50, "change_pct": 0.52}
-        }
-        
-        # Merge fetched results with fallbacks for missing ones
-        fetched_symbols = {r["symbol"] for r in results}
-        for symbol, name in indices.items():
-            if symbol not in fetched_symbols:
-                fb = fallback_data.get(symbol, {"price": 10000.0, "change": 50.0, "change_pct": 0.5})
-                results.append({
-                    "symbol": symbol,
-                    "name": name,
-                    "price": fb["price"],
-                    "change": fb["change"],
-                    "change_pct": fb["change_pct"],
-                    "trend": "BULLISH" if fb["change_pct"] >= 0 else "BEARISH"
-                })
+    # Fallback or synthetic pulse if market data fails
+    if not results:
+        results = [
+            {"symbol": "^NSEI", "name": "NIFTY 50", "price": 24350.50, "change": 142.30, "change_pct": 0.59, "trend": "BULLISH"},
+            {"symbol": "^NSEBANK", "name": "NIFTY BANK", "price": 52110.80, "change": -85.20, "change_pct": -0.16, "trend": "BEARISH"},
+            {"symbol": "^BSESN", "name": "SENSEX", "price": 79890.10, "change": 410.50, "change_pct": 0.52, "trend": "BULLISH"}
+        ]
 
     return {
         "status": "success",
@@ -132,34 +103,18 @@ def get_market_pulse():
     }
 
 @app.get("/api/screener")
-def get_screener_recommendations(universe: str = Query("DEFAULT")):
+def get_screener_recommendations():
     """
-    Scans NSE stocks and returns pre-indexed Long-Term & Short-Term picks based on selected universe.
-    Universes: NIFTY_50, NIFTY_NEXT_50, NIFTY_MIDCAP, NIFTY_SMALLCAP, NIFTY_MICROCAP, SECTORAL_IT, etc.
+    Scans NSE stocks and returns pre-indexed Long-Term & Short-Term picks.
     """
-    if universe.upper() == "DYNAMIC_5000CR":
-        import os, json
-        path = os.path.join(os.path.dirname(__file__), "engine", "dynamic_universes.json")
-        tickers = UNIVERSES_DICT["DEFAULT"]
-        if os.path.exists(path):
-            try:
-                with open(path, "r") as f:
-                    data = json.load(f)
-                    tickers = data.get("universe", tickers)
-            except Exception as e:
-                print(f"Error loading dynamic universe: {e}")
-    else:
-        tickers = UNIVERSES_DICT.get(universe.upper(), UNIVERSES_DICT["DEFAULT"])
-        
-    scan_data = run_screener_scan(tickers=tickers)
+    scan_data = run_screener_scan()
     return sanitize_json_obj({
         "status": "success",
-        "universe_scanned": universe.upper(),
         "data": scan_data
     })
 
 KNOWN_STOCKS_MAP = {
-    "SBIN": {"name": "STATE BANK OF INDIA", "sector": "Financial Services", "base_price": 1097.20, "industry": "Banks - Regional"},
+    "SBIN": {"name": "STATE BANK OF INDIA", "sector": "Financial Services", "base_price": 1097.20, "industry": "Banks - Public"},
     "RELIANCE": {"name": "RELIANCE INDUSTRIES LTD", "sector": "Energy & Retail", "base_price": 2980.50, "industry": "Oil & Gas / Telecom"},
     "TCS": {"name": "TATA CONSULTANCY SERVICES", "sector": "Information Technology", "base_price": 2452.70, "industry": "IT Services"},
     "INFY": {"name": "INFOSYS LIMITED", "sector": "Information Technology", "base_price": 1175.10, "industry": "IT Services"},
@@ -179,6 +134,35 @@ KNOWN_STOCKS_MAP = {
     "TITAN": {"name": "TITAN COMPANY LIMITED", "sector": "Consumer Durables", "base_price": 3450.00, "industry": "Gems & Jewellery"},
     "MARUTI": {"name": "MARUTI SUZUKI INDIA", "sector": "Automobiles", "base_price": 12200.00, "industry": "Auto Manufacturers"},
     "ULTRACEMCO": {"name": "ULTRATECH CEMENT LTD", "sector": "Materials", "base_price": 11200.00, "industry": "Cement"},
+    # ── NEW: Expanded Universe ──
+    "KPITTECH": {"name": "KPIT TECHNOLOGIES LTD", "sector": "Information Technology", "base_price": 1580.00, "industry": "Auto Tech / Embedded"},
+    "PERSISTENT": {"name": "PERSISTENT SYSTEMS LTD", "sector": "Information Technology", "base_price": 5200.00, "industry": "IT Services"},
+    "TATAELXSI": {"name": "TATA ELXSI LIMITED", "sector": "Information Technology", "base_price": 7800.00, "industry": "Design & Technology"},
+    "HCLTECH": {"name": "HCL TECHNOLOGIES LTD", "sector": "Information Technology", "base_price": 1550.00, "industry": "IT Services"},
+    "TECHM": {"name": "TECH MAHINDRA LIMITED", "sector": "Information Technology", "base_price": 1450.00, "industry": "IT Services"},
+    "COFORGE": {"name": "COFORGE LIMITED", "sector": "Information Technology", "base_price": 5600.00, "industry": "IT Services"},
+    "HAL": {"name": "HINDUSTAN AERONAUTICS", "sector": "Defence", "base_price": 4200.00, "industry": "Aerospace & Defence"},
+    "BEL": {"name": "BHARAT ELECTRONICS LTD", "sector": "Defence", "base_price": 280.00, "industry": "Defence Electronics"},
+    "ZOMATO": {"name": "ZOMATO LIMITED", "sector": "Internet", "base_price": 220.00, "industry": "Food Delivery & Quick Commerce"},
+    "DMART": {"name": "AVENUE SUPERMARTS LTD", "sector": "Retail", "base_price": 4500.00, "industry": "Retail - Supermarkets"},
+    "TRENT": {"name": "TRENT LIMITED", "sector": "Retail", "base_price": 5800.00, "industry": "Fashion Retail"},
+    "POLYCAB": {"name": "POLYCAB INDIA LIMITED", "sector": "Electricals", "base_price": 6200.00, "industry": "Cables & Wires"},
+    "ASIANPAINT": {"name": "ASIAN PAINTS LIMITED", "sector": "Consumer Durables", "base_price": 2900.00, "industry": "Paints & Coatings"},
+    "HINDUNILVR": {"name": "HINDUSTAN UNILEVER", "sector": "FMCG", "base_price": 2600.00, "industry": "FMCG Conglomerate"},
+    "NESTLEIND": {"name": "NESTLE INDIA LIMITED", "sector": "FMCG", "base_price": 2400.00, "industry": "Food Products"},
+    "DRREDDY": {"name": "DR REDDYS LABORATORIES", "sector": "Healthcare & Pharma", "base_price": 6400.00, "industry": "Pharmaceuticals"},
+    "CIPLA": {"name": "CIPLA LIMITED", "sector": "Healthcare & Pharma", "base_price": 1500.00, "industry": "Pharmaceuticals"},
+    "APOLLOHOSP": {"name": "APOLLO HOSPITALS ENTERPRISE", "sector": "Healthcare", "base_price": 6100.00, "industry": "Hospitals & Healthcare"},
+    "NTPC": {"name": "NTPC LIMITED", "sector": "Power & Energy", "base_price": 370.00, "industry": "Power Generation"},
+    "POWERGRID": {"name": "POWER GRID CORP OF INDIA", "sector": "Power & Energy", "base_price": 320.00, "industry": "Power Transmission"},
+    "IRCTC": {"name": "IRCTC LIMITED", "sector": "Railways", "base_price": 880.00, "industry": "Railway Services"},
+    "PIDILITIND": {"name": "PIDILITE INDUSTRIES", "sector": "Chemicals", "base_price": 3100.00, "industry": "Specialty Chemicals"},
+    "DABUR": {"name": "DABUR INDIA LIMITED", "sector": "FMCG", "base_price": 620.00, "industry": "Ayurveda & FMCG"},
+    "MARICO": {"name": "MARICO LIMITED", "sector": "FMCG", "base_price": 650.00, "industry": "Personal Care"},
+    "BRITANNIA": {"name": "BRITANNIA INDUSTRIES", "sector": "FMCG", "base_price": 5500.00, "industry": "Biscuits & Bakery"},
+    "CDSL": {"name": "CENTRAL DEPOSITORY SERVICES", "sector": "Capital Markets", "base_price": 1800.00, "industry": "Depository Services"},
+    "CHOLAFIN": {"name": "CHOLAMANDALAM INVESTMENT", "sector": "Financial Services", "base_price": 1400.00, "industry": "NBFC - Vehicle Finance"},
+    "DIVISLAB": {"name": "DIVIS LABORATORIES", "sector": "Healthcare & Pharma", "base_price": 5100.00, "industry": "API Manufacturing"},
 }
 
 def generate_fallback_stock_analysis(clean_ticker: str):
@@ -244,41 +228,73 @@ def generate_fallback_stock_analysis(clean_ticker: str):
 @app.get("/api/stock/{ticker}")
 def get_stock_analysis(ticker: str):
     """
-    Deep dive 360-degree analysis for any given NSE stock ticker.
+    Deep dive 360-degree analysis for any given NSE/BSE stock ticker.
+    Tries NSE (.NS) first, falls back to BSE (.BO) if not found.
     """
     clean_ticker = ticker.upper().strip().replace(".NS", "").replace(".BO", "")
-    symbol = f"{clean_ticker}.NS"
-
-    try:
-        stock = yf.Ticker(symbol)
-        df = stock.history(period="1y").dropna(subset=['Close'])
-        if df.empty or len(df) < 20:
-            return sanitize_json_obj(generate_fallback_stock_analysis(clean_ticker))
+    
+    # Common mappings for user search bar
+    search_mappings = {
+        "TATA POWER": "TATAPOWER",
+        "TATA MOTORS": "TATAMOTORS",
+        "TATA STEEL": "TATASTEEL",
+        "TATA CONSULTANCY": "TCS",
+        "STATE BANK": "SBIN",
+        "BAJAJ FINANCE": "BAJFINANCE",
+        "ASIAN PAINT": "ASIANPAINT",
+        "SUN PHARMA": "SUNPHARMA",
+        "JIO FINANCIAL": "JIOFIN",
+        "RELIANCE IND": "RELIANCE",
+        "HDFC BANK": "HDFCBANK",
+        "ICICI BANK": "ICICIBANK",
+        "AXIS BANK": "AXISBANK",
+        "KOTAK BANK": "KOTAKBANK",
+        "AEROFLEX INDUSTRIES LTD": "AEROFLEX",
+        "AEROFLEX INDUSTRIES": "AEROFLEX"
+    }
+    
+    if clean_ticker in search_mappings:
+        clean_ticker = search_mappings[clean_ticker]
+    else:
+        # If still has spaces, just remove them as a best-effort guess
+        clean_ticker = clean_ticker.replace(" ", "")
+    
+    # Try NSE first, then BSE
+    for suffix in [".NS", ".BO"]:
+        symbol = f"{clean_ticker}{suffix}"
+        try:
+            stock = yf.Ticker(symbol)
+            df = stock.history(period="1y").dropna(subset=['Close'])
+            if df.empty or len(df) < 20:
+                continue  # Try next exchange
+                
+            tech = analyze_stock_technicals(df)
+            fund = analyze_stock_fundamentals(symbol)
+            plan = generate_trade_plan(tech, fund, symbol)
+            memo = generate_veteran_ai_memo(tech, fund, plan, symbol)
             
-        tech = analyze_stock_technicals(df)
-        fund = analyze_stock_fundamentals(symbol)
-        plan = generate_trade_plan(tech, fund, symbol)
-        memo = generate_veteran_ai_memo(tech, fund, plan, symbol)
-        
-        company_name = stock.info.get("shortName") or stock.info.get("longName")
-        if not company_name and clean_ticker in KNOWN_STOCKS_MAP:
-            company_name = KNOWN_STOCKS_MAP[clean_ticker]["name"]
-        elif not company_name:
-            company_name = f"{clean_ticker} LIMITED"
+            company_name = stock.info.get("shortName") or stock.info.get("longName")
+            if not company_name and clean_ticker in KNOWN_STOCKS_MAP:
+                company_name = KNOWN_STOCKS_MAP[clean_ticker]["name"]
+            elif not company_name:
+                company_name = f"{clean_ticker} LIMITED"
 
-        return sanitize_json_obj({
-            "status": "success",
-            "ticker": clean_ticker,
-            "full_symbol": symbol,
-            "company_name": company_name,
-            "technicals": tech,
-            "fundamentals": fund,
-            "trade_plan": plan,
-            "ai_veteran_memo": memo
-        })
-    except Exception as e:
-        print(f"yfinance lookup error for {symbol}: {e}. Utilizing fallback generator.")
-        return sanitize_json_obj(generate_fallback_stock_analysis(clean_ticker))
+            return sanitize_json_obj({
+                "status": "success",
+                "ticker": clean_ticker,
+                "full_symbol": symbol,
+                "company_name": company_name,
+                "technicals": tech,
+                "fundamentals": fund,
+                "trade_plan": plan,
+                "ai_veteran_memo": memo
+            })
+        except Exception as e:
+            print(f"yfinance lookup error for {symbol}: {e}")
+            continue
+    
+    # Both exchanges failed — use fallback generator
+    return sanitize_json_obj(generate_fallback_stock_analysis(clean_ticker))
 
 @app.get("/api/stock/{ticker}/chart")
 def get_stock_chart_data(ticker: str, period: str = Query("6m", enum=["1m", "3m", "6m", "1y", "2y"])):
@@ -471,3 +487,68 @@ def agent_execute_trade_endpoint(req: AgentTradeRequest):
     })
 
 
+@app.get("/api/market-radar")
+def get_market_radar():
+    """
+    Daily Market Intelligence — Top Gainers, Losers, Volume Spikes, Sector Heatmap.
+    """
+    try:
+        data = get_daily_market_movers()
+        return sanitize_json_obj(data)
+    except Exception as e:
+        print(f"Market radar error: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/api/buffett-scan")
+def get_buffett_scan(max_stocks: int = Query(30, ge=5, le=100)):
+    """
+    Warren Buffett Multibagger Stock Screener — scans NSE stocks and ranks
+    by composite Buffett Conviction Score across 6 fundamental categories.
+    """
+    try:
+        data = run_buffett_scan(max_stocks=max_stocks)
+        return sanitize_json_obj({"status": "success", "data": data})
+    except Exception as e:
+        print(f"Buffett scan error: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/api/deep-research/{ticker}")
+def get_deep_research(ticker: str, date: str = Query(None)):
+    """
+    Drona AI Deep Research — Multi-Agent TradingAgents Analysis.
+    Orchestrates Fundamental, Technical, Sentiment, and News analysts
+    with Bull/Bear debate for comprehensive trading decisions.
+    Powered by TauricResearch/TradingAgents framework.
+    """
+    try:
+        result = drona_engine.run_deep_research(ticker, date)
+        return sanitize_json_obj(result)
+    except Exception as e:
+        print(f"Deep research error for {ticker}: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/api/deep-research/status")
+def get_deep_research_status():
+    """
+    Check if the Drona AI (TradingAgents) deep research engine is available.
+    """
+    return {
+        "status": "success",
+        "drona_available": drona_engine.is_available(),
+        "engine": "TauricResearch/TradingAgents v0.4.0",
+        "llm_backend": "Ollama (llama3.1:8b)",
+        "agents": [
+            "Fundamental Analyst",
+            "Technical Analyst",
+            "Sentiment Analyst",
+            "News Analyst",
+            "Bull Researcher",
+            "Bear Researcher",
+            "Trader Agent",
+            "Risk Manager",
+            "Portfolio Manager"
+        ]
+    }
