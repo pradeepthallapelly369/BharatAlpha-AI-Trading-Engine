@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 #  BharatAlpha AI Ecosystem — Master Launcher
-#  Launches both Invest (:8000 / :5173) and Trade (:8001 / :5174)
+#  Launches both Invest (:8000 / :5175) and Trade (:8001 / :5174)
 # ============================================================
 
 set -e
@@ -21,12 +21,12 @@ fi
 
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║            BHARAT ALPHA AI DUAL-APP TRADING PLATFORM          ║"
-echo "║   📈 Invest Dashboard (:5173)  |  ⚡ Options Terminal (:5174)   ║"
+echo "║   📈 Invest Dashboard (:5175)  |  ⚡ Options Terminal (:5174)   ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
 
 # ── Clean stale ports ───────────────────────────────────────────
-fuser -k 8000/tcp 8001/tcp 5173/tcp 5174/tcp 2>/dev/null || true
+fuser -k 8000/tcp 8001/tcp 5175/tcp 5174/tcp 2>/dev/null || true
 sleep 1
 
 # ── Launch Invest App ───────────────────────────────────────────
@@ -35,9 +35,9 @@ cd "$BASE_DIR/bharat_alpha"
 PYTHONPATH="$BASE_DIR/bharat_alpha" "$VENV_UVICORN" backend.main:app --host 0.0.0.0 --port 8000 > /tmp/invest_be.log 2>&1 &
 INVEST_BE_PID=$!
 
-echo "🎨 Launching BharatAlpha Invest Frontend (:5173)..."
+echo "🎨 Launching BharatAlpha Invest Frontend (:5175)..."
 cd "$BASE_DIR/bharat_alpha/frontend"
-npm run dev -- --port 5173 --host 0.0.0.0 > /tmp/invest_fe.log 2>&1 &
+npm run dev -- --port 5175 --host 0.0.0.0 > /tmp/invest_fe.log 2>&1 &
 INVEST_FE_PID=$!
 
 # ── Launch Trade App ────────────────────────────────────────────
@@ -57,7 +57,7 @@ echo ""
 echo "════════════════════════════════════════════════════════════════"
 echo "  ✅ Both BharatAlpha Applications are LIVE!"
 echo ""
-echo "  📈 BharatAlpha Invest : http://localhost:5173  (API: :8000)"
+echo "  📈 BharatAlpha Invest : http://localhost:5175  (API: :8000)"
 echo "  ⚡ BharatAlpha Trade  : http://localhost:5174  (API: :8001)"
 echo ""
 echo "  Press Ctrl+C to shut down all servers."
@@ -67,7 +67,7 @@ cleanup() {
     echo ""
     echo "🛑 Shutting down BharatAlpha AI Platform..."
     kill $INVEST_BE_PID $INVEST_FE_PID $TRADE_BE_PID $TRADE_FE_PID 2>/dev/null || true
-    fuser -k 8000/tcp 8001/tcp 5173/tcp 5174/tcp 2>/dev/null || true
+    fuser -k 8000/tcp 8001/tcp 5175/tcp 5174/tcp 2>/dev/null || true
     exit 0
 }
 
