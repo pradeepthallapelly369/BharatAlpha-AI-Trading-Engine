@@ -7,17 +7,37 @@
 
 set -e
 
-PROJECT_DIR="/home/upc/every_thing_claude/bharat_alpha_trade"
-VENV_PYTHON="/home/upc/every_thing_claude/venv_bt/bin/python3"
-VENV_UVICORN="/home/upc/every_thing_claude/venv_bt/bin/uvicorn"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$SCRIPT_DIR"
 FRONTEND_DIR="${PROJECT_DIR}/frontend"
 LOG_DIR="${PROJECT_DIR}/logs"
 
 mkdir -p "$LOG_DIR"
 
+# Locate python & uvicorn dynamically
+if [ -x "/home/upc/pradeep-workspace/src/apps/GlobalCareer-AI-Engine/venv/bin/uvicorn" ]; then
+    VENV_PYTHON="/home/upc/pradeep-workspace/src/apps/GlobalCareer-AI-Engine/venv/bin/python3"
+    VENV_UVICORN="/home/upc/pradeep-workspace/src/apps/GlobalCareer-AI-Engine/venv/bin/uvicorn"
+elif [ -x "/home/upc/venv/bin/uvicorn" ]; then
+    VENV_PYTHON="/home/upc/venv/bin/python3"
+    VENV_UVICORN="/home/upc/venv/bin/uvicorn"
+elif [ -x "/home/upc/every_thing_claude/archive/dev_envs/venv_bt/bin/python3" ]; then
+    VENV_PYTHON="/home/upc/every_thing_claude/archive/dev_envs/venv_bt/bin/python3"
+    VENV_UVICORN="/home/upc/every_thing_claude/archive/dev_envs/venv_bt/bin/uvicorn"
+elif [ -x "/home/upc/every_thing_claude/venv_bt/bin/python3" ]; then
+    VENV_PYTHON="/home/upc/every_thing_claude/venv_bt/bin/python3"
+    VENV_UVICORN="/home/upc/every_thing_claude/venv_bt/bin/uvicorn"
+elif command -v uvicorn >/dev/null 2>&1; then
+    VENV_PYTHON="$(which python3)"
+    VENV_UVICORN="uvicorn"
+else
+    VENV_PYTHON="$(which python3)"
+    VENV_UVICORN="python3 -m uvicorn"
+fi
+
 echo "╔══════════════════════════════════════════════════════════╗"
 echo "║   BharatAlpha Trade ⚡ — Options & Algo-Trading Terminal ║"
-echo "║   Black-Scholes Greeks, 7 Strategies & Broker Engine     ║"
+echo "║   OrderBlock Screener, Market Breadth & Greeks Engine    ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
 
@@ -38,8 +58,14 @@ echo "   Backend PID: $BACKEND_PID"
 # ── 2. Start Vite Frontend (port 5174) ────────────────────────
 echo "🎨 Starting Options Dashboard UI on http://localhost:5174 ..."
 cd "$FRONTEND_DIR"
-npm run dev > "$LOG_DIR/frontend.log" 2>&1 &
+npm run dev -- --host 0.0.0.0 --port 5174 > "$LOG_DIR/frontend.log" 2>&1 &
 FRONTEND_PID=$!
+sleep 1.5
+if ! kill -0 $FRONTEND_PID 2>/dev/null; then
+    echo "   Dev server hit watcher limit; launching Vite preview..."
+    npx vite preview --host 0.0.0.0 --port 5174 > "$LOG_DIR/frontend.log" 2>&1 &
+    FRONTEND_PID=$!
+fi
 echo "   Frontend PID: $FRONTEND_PID"
 
 # ── 3. Wait for servers to be ready ───────────────────────────

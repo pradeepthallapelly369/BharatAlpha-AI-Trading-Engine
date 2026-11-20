@@ -1,6 +1,7 @@
 """
 BharatAlpha Trade ⚡ — Options & Futures Trading Terminal API
 FastAPI backend on port 8001
+Features: MiroFish Swarm Sandbox, Live Market Ticks, Fyers Broker Integration
 """
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +15,8 @@ load_dotenv()
 
 from backend.broker.fyers_connector import fyers_broker
 from backend.broker.zerodha_connector import zerodha_broker
+from backend.broker.market_feed import market_feed
+from backend.engine.swarm_simulator import swarm_engine
 from backend.engine.options_greeks import (
     enrich_option_chain_with_greeks, calculate_all_greeks,
     solve_implied_volatility, days_to_expiry_fraction, RISK_FREE_RATE
@@ -21,8 +24,10 @@ from backend.engine.options_greeks import (
 from backend.engine.options_strategies import (
     STRATEGY_CATALOG, analyze_strategy, build_strategy_legs, calculate_payoff_at_expiry
 )
+from backend.engine.agent_hub import TradeAgentEngine
+from backend.engine.orderblock_screener import orderblock_screener
 
-app = FastAPI(title="BharatAlpha Trade ⚡ — Options & Futures Terminal", version="1.0.0")
+app = FastAPI(title="BharatAlpha Trade ⚡ — Options & Futures Terminal", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,6 +36,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+trade_agent = TradeAgentEngine()
 
 def sanitize(obj):
     """Recursively sanitize numpy/nan values for JSON serialization."""
@@ -48,9 +55,11 @@ def sanitize(obj):
         return bool(obj)
     return obj
 
-# ─── Paper Trading State ───────────────────────────────────
-paper_positions = []
-paper_pnl = 0.0
+# ─── Data Models ───────────────────────────────────
+class FyersCredsRequest(BaseModel):
+    app_id: str
+    secret_key: str
+    access_token: Optional[str] = None
 
 class StrategyRequest(BaseModel):
     strategy_key: str
@@ -71,7 +80,52 @@ class ExecuteRequest(BaseModel):
     mode: str = "paper"  # paper | live
     broker: str = "fyers"
 
-# ─── Broker Auth Endpoints ──────────────────────────────────
+class AgentChatReq(BaseModel):
+    query: str
+    agent: str = "arya"
+
+class AgentExecReq(BaseModel):
+    symbol: str = "NIFTY"
+    action: str = "BUY"
+    mode: str = "paper"
+    broker: str = "fyers"
+    strategy: str = "SHORT_STRADDLE"
+    qty: int = 25
+    strike: int = 24600
+    type: str = "CE"
+
+class SwarmSimReq(BaseModel):
+    symbol: str = "NIFTY"
+    spot_price: float = 24600.0
+
+# ─── Live Market Feed Endpoint ───────────────────────────
+@app.get("/api/market/ticks")
+def get_market_ticks():
+    """Get live ticker stream for NIFTY, BANKNIFTY, FINNIFTY, SENSEX."""
+    return sanitize(market_feed.get_live_ticks())
+
+# ─── MiroFish Swarm Simulation Endpoint ───────────────────
+@app.post("/api/agent/swarm/simulate")
+def run_swarm_simulation(req: SwarmSimReq):
+    """Run a 3-round MiroFish Swarm Sandbox Simulation for market consensus and trade generation."""
+    return sanitize(swarm_engine.run_simulation(symbol=req.symbol, spot_price=req.spot_price))
+
+# ─── Broker Auth & Setup Endpoints ────────────────────────
+@app.post("/api/broker/fyers/credentials")
+def save_fyers_credentials(req: FyersCredsRequest):
+    """Configure and save Fyers API credentials."""
+    res = fyers_broker.save_credentials(req.app_id, req.secret_key, req.access_token)
+    return sanitize(res)
+
+@app.get("/api/broker/fyers/profile")
+def get_fyers_profile():
+    """Get connected Fyers profile information."""
+    return sanitize(fyers_broker.get_profile())
+
+@app.get("/api/broker/funds")
+def get_broker_funds():
+    """Get account margin and funds."""
+    return sanitize(fyers_broker.get_funds())
 
 @app.get("/api/broker/login/{broker}")
 def broker_login(broker: str):
@@ -95,11 +149,12 @@ def broker_callback(auth_code: str = Query(None), s: str = Query(None), code: st
 
 @app.get("/api/broker/status")
 def broker_status():
-    """Check which brokers are connected."""
+    """Check broker connection status."""
     return {
         "fyers": {
             "connected": fyers_broker.is_connected(),
             "has_credentials": bool(fyers_broker.client_id),
+            "client_id": fyers_broker.client_id[:6] + "..." if fyers_broker.client_id else ""
         },
         "zerodha": {
             "connected": zerodha_broker.is_connected(),
@@ -109,10 +164,9 @@ def broker_status():
     }
 
 # ─── Option Chain Endpoint ──────────────────────────────────
-
 @app.get("/api/options/chain/{symbol}")
 def get_option_chain(symbol: str = "NIFTY"):
-    """Get live option chain with Greeks for NIFTY or BANKNIFTY."""
+    """Get live option chain with Black-Scholes Greeks."""
     sym_map = {
         "NIFTY": "NSE:NIFTY50-INDEX",
         "BANKNIFTY": "NSE:NIFTYBANK-INDEX",
@@ -121,7 +175,7 @@ def get_option_chain(symbol: str = "NIFTY"):
 
     raw = fyers_broker.get_option_chain(fyers_symbol)
     chain = raw.get("chain", [])
-    spot = raw.get("spot_price", 24600)
+    spot = raw.get("spot_price", 24628.5)
     dte = raw.get("days_to_expiry", 7)
     lot_size = raw.get("lot_size", 25)
     strike_step = raw.get("strike_step", 50)
@@ -141,10 +195,9 @@ def get_option_chain(symbol: str = "NIFTY"):
     })
 
 # ─── Strategy Builder Endpoint ───────────────────────────────
-
 @app.get("/api/options/strategies")
 def list_strategies():
-    """List all available preset strategy templates."""
+    """List preset strategy templates."""
     return sanitize({
         "status": "success",
         "strategies": [
@@ -154,52 +207,28 @@ def list_strategies():
 
 @app.post("/api/options/strategy")
 def build_strategy(req: StrategyRequest):
-    """Build and analyze a strategy with payoff curve."""
+    """Build strategy payoff analysis."""
     result = analyze_strategy(
         req.strategy_key, req.spot_price, req.lot_size, req.strike_step
     )
     return sanitize({"status": "success", "data": result})
 
 # ─── Order Execution Endpoint ────────────────────────────────
-
 @app.post("/api/options/execute")
 def execute_order(req: ExecuteRequest):
-    """Execute multi-leg option order via broker or paper trading."""
-    global paper_positions, paper_pnl
-
+    """Execute order via paper mode or live Fyers broker."""
     if req.mode == "paper":
-        # Paper trading — simulate execution
-        executed_legs = []
-        for leg in req.legs:
-            entry = {
-                "action": leg.action,
-                "type": leg.type,
-                "strike": leg.strike,
-                "qty": leg.qty * req.lot_size,
-                "premium": leg.premium,
-                "status": "FILLED",
-                "fill_price": leg.premium,
-                "timestamp": __import__("datetime").datetime.now().isoformat(),
-            }
-            paper_positions.append(entry)
-            executed_legs.append(entry)
-
-        net_credit = sum(
-            l.premium * req.lot_size if l.action == "SELL" else -l.premium * req.lot_size
-            for l in req.legs
-        )
-
-        return sanitize({
-            "status": "success",
+        return sanitize(trade_agent.execute_trade({
+            "symbol": "NIFTY",
+            "action": "BUY",
             "mode": "paper",
-            "message": f"Paper trade executed successfully! {len(req.legs)} legs filled.",
-            "net_credit_debit": round(net_credit, 2),
-            "executed_legs": executed_legs,
-        })
+            "broker": "fyers",
+            "strategy": "MULTI_LEG",
+            "qty": req.lot_size,
+        }))
     else:
-        # Live execution via Fyers
         if not fyers_broker.is_connected():
-            raise HTTPException(status_code=401, detail="Fyers not connected. Login first.")
+            raise HTTPException(status_code=401, detail="Fyers broker not connected. Please enter credentials.")
         results = []
         for leg in req.legs:
             sym = f"NSE:NIFTY{leg.strike}{leg.type}"
@@ -209,47 +238,92 @@ def execute_order(req: ExecuteRequest):
         return sanitize({"status": "success", "mode": "live", "orders": results})
 
 # ─── Positions & P&L Endpoint ────────────────────────────────
-
 @app.get("/api/broker/positions")
 def get_positions():
-    """Get current positions from broker or paper trading."""
-    mode = os.getenv("TRADING_MODE", "paper")
-    if mode == "paper":
-        return sanitize({
-            "status": "success",
-            "mode": "paper",
-            "positions": paper_positions,
-            "total_positions": len(paper_positions),
-        })
+    """Get current positions."""
     if fyers_broker.is_connected():
         return sanitize(fyers_broker.get_positions())
-    return {"status": "success", "positions": [], "message": "No broker connected"}
+    return sanitize({
+        "status": "success",
+        "mode": "paper",
+        "positions": trade_agent.get_positions(),
+        "total_positions": len(trade_agent.get_positions()),
+    })
 
-from backend.engine.agent_hub import TradeAgentEngine
-
-trade_agent = TradeAgentEngine()
-
-class AgentChatReq(BaseModel):
-    query: str
-    agent: str = "arya"
-
-class AgentExecReq(BaseModel):
-    symbol: str = "NIFTY"
-    action: str = "BUY"
-    mode: str = "paper"
-    broker: str = "fyers"
-    strategy: str = "SHORT_STRADDLE"
-    qty: int = 25
-    strike: int = 24600
-    type: str = "CE"
-
+# ─── Agent AI Chat & Execution ──────────────────────────────
 @app.post("/api/agent/chat")
 def trade_agent_chat(req: AgentChatReq):
-    """Chat with Options AI Agent (Arya) for live Greeks analysis & strategy recommendations."""
+    """Chat with Options AI Agent (Arya)."""
     return sanitize(trade_agent.process_chat(req.query, req.agent))
 
 @app.post("/api/agent/execute")
 def trade_agent_execute(req: AgentExecReq):
-    """Execute paper or real broker trade directly triggered by AI Agent."""
+    """Execute trade directly triggered by AI Agent."""
     return sanitize(trade_agent.execute_trade(req.dict()))
 
+
+# ─── OrderBlock & Intraday Breadth Screener Endpoints ────────
+class OrderBlockExecReq(BaseModel):
+    symbol: str
+    action: str = "SELL"
+    order_type: str = "OPTIONS"  # OPTIONS or FUTURES
+    mode: str = "paper"  # paper or live
+    broker: str = "fyers"
+    target: Optional[float] = None
+    stop_loss: Optional[float] = None
+    qty: Optional[int] = None
+    strike: Optional[int] = None
+    opt_type: Optional[str] = None  # PE or CE
+    entry_price: Optional[float] = None
+
+@app.get("/api/orderblock/scan")
+def get_orderblock_scan(refresh: bool = False):
+    """Scan all 213 NSE F&O stocks with Order Block levels, Breadth, and Top-3 Rule Picks."""
+    return sanitize(orderblock_screener.scan_full_universe(force_refresh=refresh))
+
+@app.get("/api/orderblock/breadth")
+def get_orderblock_breadth():
+    """Get market breadth (Bullish vs Bearish count) and sector rankings."""
+    scan = orderblock_screener.scan_full_universe()
+    return sanitize({
+        "breadth": scan["breadth"],
+        "sectors": scan["sectors"],
+        "timestamp": scan["timestamp"]
+    })
+
+@app.get("/api/orderblock/stock/{symbol}")
+def get_orderblock_stock(symbol: str):
+    """Get detailed technicals, Order Block range, VWAP, S1/S2, R1/R4, and 5-min candles."""
+    detail = orderblock_screener.get_stock_detail(symbol)
+    if not detail:
+        raise HTTPException(status_code=404, detail=f"Stock {symbol} not found in F&O universe")
+    return sanitize(detail)
+
+@app.post("/api/orderblock/execute")
+def execute_orderblock_trade(req: OrderBlockExecReq):
+    """1-Click order execution for top Order Block setups."""
+    detail = orderblock_screener.get_stock_detail(req.symbol)
+    plan = detail["trade_plan"] if detail else {}
+    lot = req.qty or plan.get("lot_size", 500)
+    price = req.entry_price or (detail["stock"]["price"] if detail else 1000.0)
+
+    exec_payload = {
+        "symbol": req.symbol,
+        "action": req.action.upper(),
+        "mode": req.mode,
+        "broker": req.broker,
+        "strategy": f"ORDERBLOCK_{req.order_type}",
+        "qty": lot,
+        "strike": req.strike or int(round(price / 10) * 10),
+        "type": req.opt_type or ("PE" if req.action.upper() == "SELL" else "CE"),
+        "entry_price": price,
+        "target": req.target or plan.get("target_1"),
+        "stop_loss": req.stop_loss or plan.get("stop_loss"),
+    }
+    res = trade_agent.execute_trade(exec_payload)
+    return sanitize({
+        "status": "success",
+        "message": f"OrderBlock setup filled for {req.symbol} ({req.action.upper()} {exec_payload['type']})",
+        "trade": exec_payload,
+        "execution_result": res
+    })
